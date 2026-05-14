@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% load form_tags %}
+{% block title %}修改訂單狀態 #{{ order.pk }}{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <a href="{% url 'orders:detail' order.pk %}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h5 class="fw-bold mb-0">修改訂單狀態</h5>
+  <span class="text-muted">— #{{ order.pk }}</span>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-pencil me-2 text-primary"></i>變更狀態
+      </div>
+      <div class="card-body p-4">
+        <div class="mb-3 p-3 bg-light rounded">
+          <div class="small text-muted mb-1">客戶</div>
+          <div class="fw-semibold">{{ order.customer.name }}</div>
+        </div>
+        <div class="mb-3 p-3 bg-light rounded">
+          <div class="small text-muted mb-1">目前狀態</div>
+          <span class="badge rounded-pill badge-{{ order.status }}">{{ order.get_status_display }}</span>
+        </div>
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <div class="mb-4">
+            <label class="form-label fw-semibold">新狀態</label>
+            {{ form.status|bs5 }}
+            {% if form.status.errors %}
+            <div class="text-danger small mt-1">{{ form.status.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary px-4">
+              <i class="bi bi-check-lg me-1"></i>儲存
+            </button>
+            <a href="{% url 'orders:detail' order.pk %}" class="btn btn-outline-secondary">取消</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-list-ul me-2 text-primary"></i>訂單明細
+      </div>
+      <div class="table-responsive">
+        <table class="table mb-0 small align-middle">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">商品</th>
+              <th class="text-end">單價</th>
+              <th class="text-end">數量</th>
+              <th class="text-end">折扣</th>
+              <th class="text-end pe-3">小計</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in records %}
+            <tr>
+              <td class="ps-3 fw-semibold">{{ r.product.name }}</td>
+              <td class="text-end">${{ r.price }}</td>
+              <td class="text-end">{{ r.quantity }}</td>
+              <td class="text-end">
+                {% if r.discount %}
+                <span class="text-danger">{{ r.discount }}%</span>
+                {% else %}0%{% endif %}
+              </td>
+              <td class="text-end pe-3 fw-semibold">${{ r.subtotal|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot class="table-light">
+            <tr>
+              <td colspan="4" class="text-end fw-semibold pe-3">訂單總額</td>
+              <td class="text-end pe-3 fw-bold text-primary fs-6">${{ order.total|floatformat:2 }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

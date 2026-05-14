@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load form_tags %}
+{% block title %}{{ action }}員工{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <a href="{% url 'accounts:employee_list' %}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h5 class="fw-bold mb-0">{{ action }}員工</h5>
+</div>
+
+<div class="card border-0 shadow-sm" style="max-width:560px;">
+  <div class="card-body p-4">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <div class="row g-3">
+        {% if form.username %}
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">帳號 <span class="text-danger">*</span></label>
+          {{ form.username|bs5 }}
+          {% if form.username.errors %}<div class="text-danger small mt-1">{{ form.username.errors.0 }}</div>{% endif %}
+        </div>
+        {% endif %}
+        {% if form.password %}
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">密碼 <span class="text-danger">*</span></label>
+          {{ form.password|bs5 }}
+          {% if form.password.errors %}<div class="text-danger small mt-1">{{ form.password.errors.0 }}</div>{% endif %}
+        </div>
+        {% endif %}
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">姓名 <span class="text-danger">*</span></label>
+          {{ form.name|bs5 }}
+          {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">手機 <span class="text-danger">*</span></label>
+          {{ form.cellphone|bs5 }}
+          {% if form.cellphone.errors %}<div class="text-danger small mt-1">{{ form.cellphone.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">地址</label>
+          {{ form.address|bs5 }}
+          {% if form.address.errors %}<div class="text-danger small mt-1">{{ form.address.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">權限等級 <span class="text-danger">*</span></label>
+          {{ form.lv|bs5 }}
+          {% if form.lv.errors %}<div class="text-danger small mt-1">{{ form.lv.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+
+      {% if form.non_field_errors %}
+      <div class="alert alert-danger mt-3 py-2 small">{{ form.non_field_errors.0 }}</div>
+      {% endif %}
+
+      <hr class="my-4">
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary px-4">
+          <i class="bi bi-check-lg me-1"></i>儲存
+        </button>
+        <a href="{% url 'accounts:employee_list' %}" class="btn btn-outline-secondary">取消</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

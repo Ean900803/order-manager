@@ -1,0 +1,13 @@
+.sidebar .nav-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.sidebar .nav-link.active {
+  background: #0d6efd;
+}
+.table th {
+  white-space: nowrap;
+}
+.badge-pending   { background: #6c757d; }
+.badge-confirmed { background: #0d6efd; }
+.badge-completed { background: #198754; }
+.badge-cancelled { background: #dc3545; }

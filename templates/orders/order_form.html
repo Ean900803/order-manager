@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% load form_tags %}
+{% block title %}新增訂單{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <a href="{% url 'orders:list' %}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h5 class="fw-bold mb-0">新增訂單</h5>
+</div>
+
+<form method="post" id="order-form" novalidate>
+  {% csrf_token %}
+
+  <!-- 訂單主檔 -->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-white fw-semibold">
+      <i class="bi bi-info-circle me-2 text-primary"></i>訂單資訊
+    </div>
+    <div class="card-body p-4">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">客戶 <span class="text-danger">*</span></label>
+          {{ form.customer|bs5 }}
+          {% if form.customer.errors %}
+          <div class="text-danger small mt-1">{{ form.customer.errors.0 }}</div>
+          {% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">訂單日期 <span class="text-danger">*</span></label>
+          {{ form.ordered_date|bs5 }}
+          {% if form.ordered_date.errors %}
+          <div class="text-danger small mt-1">{{ form.ordered_date.errors.0 }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Formset management -->
+  {{ formset.management_form }}
+
+  <!-- 訂單明細 -->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <span class="fw-semibold"><i class="bi bi-list-ul me-2 text-primary"></i>訂單明細</span>
+      <button type="button" class="btn btn-sm btn-outline-primary" id="add-row">
+        <i class="bi bi-plus-lg me-1"></i>新增明細
+      </button>
+    </div>
+    <div class="table-responsive">
+      <table class="table mb-0 align-middle" id="formset-table">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3" style="min-width:240px">商品</th>
+            <th style="width:110px">單價</th>
+            <th style="width:100px">數量</th>
+            <th style="width:140px">折扣(%)</th>
+            <th style="width:120px">小計</th>
+            <th style="width:52px"></th>
+          </tr>
+        </thead>
+        <tbody id="formset-body">
+          {% for rec_form in formset %}
+          <tr class="formset-row">
+            <td class="ps-3">
+              {{ rec_form.id }}
+              {{ rec_form.product|bs5 }}
+              {% if rec_form.product.errors %}
+              <div class="text-danger small">{{ rec_form.product.errors.0 }}</div>
+              {% endif %}
+            </td>
+            <td>
+              <input type="text" class="form-control form-control-sm unit-price" readonly placeholder="—">
+            </td>
+            <td>
+              {{ rec_form.quantity|bs5 }}
+              {% if rec_form.quantity.errors %}
+              <div class="text-danger small">{{ rec_form.quantity.errors.0 }}</div>
+              {% endif %}
+            </td>
+            <td>
+              <div class="input-group input-group-sm">
+                {{ rec_form.discount|bs5 }}
+                <span class="input-group-text">%</span>
+              </div>
+              {% if rec_form.discount.errors %}
+              <div class="text-danger small">{{ rec_form.discount.errors.0 }}</div>
+              {% endif %}
+            </td>
+            <td>
+              <input type="text" class="form-control form-control-sm row-subtotal" readonly placeholder="0.00">
+            </td>
+            <td>
+              {% if rec_form.DELETE %}
+              <div class="d-none">{{ rec_form.DELETE }}</div>
+              {% endif %}
+              <button type="button" class="btn btn-sm btn-outline-danger remove-row">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer bg-white d-flex justify-content-between align-items-center py-2 px-3">
+      {% if formset.non_form_errors %}
+      <div class="text-danger small">
+        <i class="bi bi-exclamation-circle me-1"></i>{{ formset.non_form_errors.0 }}
+      </div>
+      {% else %}
+      <span class="text-muted small">至少填寫一筆明細</span>
+      {% endif %}
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small">訂單總額</span>
+        <span class="fw-bold fs-5 text-primary" id="order-total">0.00</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary px-4">
+      <i class="bi bi-check-lg me-1"></i>建立訂單
+    </button>
+    <a href="{% url 'orders:list' %}" class="btn btn-outline-secondary">取消</a>
+  </div>
+</form>
+
+<!-- 空白 row 樣板（JS clone 用） -->
+<template id="empty-row-template">
+  <tr class="formset-row">
+    <td class="ps-3">
+      <input type="hidden" name="records-__prefix__-id" id="id_records-__prefix__-id">
+      <select name="records-__prefix__-product" id="id_records-__prefix__-product"
+              class="form-select form-select-sm product-select">
+        <option value="">--- 請選擇商品 ---</option>
+        {% for p in formset.forms.0.fields.product.queryset %}
+        <option value="{{ p.pk }}" data-price="{{ p.price }}" data-cost="{{ p.cost }}">
+          {{ p.category.name }} / {{ p.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </td>
+    <td>
+      <input type="text" class="form-control form-control-sm unit-price" readonly placeholder="—">
+    </td>
+    <td>
+      <input type="number" name="records-__prefix__-quantity" id="id_records-__prefix__-quantity"
+             class="form-control form-control-sm" min="1" value="1">
+    </td>
+    <td>
+      <div class="input-group input-group-sm">
+        <input type="number" name="records-__prefix__-discount" id="id_records-__prefix__-discount"
+               class="form-control" min="0" max="100" step="0.01" value="0">
+        <span class="input-group-text">%</span>
+      </div>
+    </td>
+    <td>
+      <input type="text" class="form-control form-control-sm row-subtotal" readonly placeholder="0.00">
+    </td>
+    <td>
+      <input type="checkbox" name="records-__prefix__-DELETE" id="id_records-__prefix__-DELETE"
+             class="d-none delete-checkbox">
+      <button type="button" class="btn btn-sm btn-outline-danger remove-row">
+        <i class="bi bi-trash"></i>
+      </button>
+    </td>
+  </tr>
+</template>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const PRODUCT_DATA = {{ product_data_json|safe }};
+const TOTAL_FORMS  = document.getElementById('id_records-TOTAL_FORMS');
+
+function getPrice(productId) {
+  return PRODUCT_DATA[productId] ? parseFloat(PRODUCT_DATA[productId].price) : 0;
+}
+
+function calcRow(row) {
+  const sel   = row.querySelector('[id$="-product"]');
+  const qty   = parseFloat(row.querySelector('[id$="-quantity"]')?.value) || 0;
+  const disc  = parseFloat(row.querySelector('[id$="-discount"]')?.value) || 0;
+  const price = getPrice(sel?.value);
+  const priceInput = row.querySelector('.unit-price');
+  if (priceInput) priceInput.value = price ? price.toFixed(2) : '';
+  const sub = price * qty * (1 - disc / 100);
+  const subInput = row.querySelector('.row-subtotal');
+  if (subInput) subInput.value = sub.toFixed(2);
+  return sub;
+}
+
+function recalcTotal() {
+  let total = 0;
+  document.querySelectorAll('.formset-row').forEach(row => {
+    const del = row.querySelector('.delete-checkbox');
+    if (!del || !del.checked) total += calcRow(row);
+  });
+  document.getElementById('order-total').textContent = total.toFixed(2);
+}
+
+function wireRow(row) {
+  row.addEventListener('change', recalcTotal);
+  row.addEventListener('input',  recalcTotal);
+  row.querySelector('.remove-row').addEventListener('click', () => {
+    const del = row.querySelector('.delete-checkbox');
+    if (del) { del.checked = true; row.classList.add('d-none'); }
+    else { row.remove(); }
+    recalcTotal();
+  });
+}
+
+// Wire existing rows
+document.querySelectorAll('.formset-row').forEach(row => {
+  const sel = row.querySelector('[id$="-product"]');
+  if (sel) sel.classList.add('product-select');
+  wireRow(row);
+});
+
+// Add new row
+document.getElementById('add-row').addEventListener('click', () => {
+  const idx  = parseInt(TOTAL_FORMS.value);
+  const tmpl = document.getElementById('empty-row-template').content.cloneNode(true);
+  const row  = tmpl.querySelector('tr');
+  row.innerHTML = row.innerHTML.replaceAll('__prefix__', idx);
+  document.getElementById('formset-body').appendChild(row);
+  TOTAL_FORMS.value = idx + 1;
+  wireRow(document.querySelector('#formset-body tr:last-child'));
+});
+
+recalcTotal();
+</script>
+{% endblock %}

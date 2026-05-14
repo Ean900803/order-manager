@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}員工管理{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4><i class="bi bi-person-badge me-2"></i>員工管理</h4>
+  {% if request.user.lv >= 9 %}
+  <a href="{% url 'accounts:employee_create' %}" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-lg me-1"></i>新增員工
+  </a>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>ID</th><th>姓名</th><th>帳號</th><th>手機</th><th>權限</th><th>狀態</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for emp in employees %}
+        <tr class="{% if emp.resigned_date %}table-secondary text-muted{% endif %}">
+          <td>{{ emp.id }}</td>
+          <td>{{ emp.name }}</td>
+          <td>{{ emp.username }}</td>
+          <td>{{ emp.cellphone }}</td>
+          <td>{{ emp.get_lv_display }}</td>
+          <td>
+            {% if emp.resigned_date %}
+            <span class="badge bg-secondary">已離職</span>
+            {% else %}
+            <span class="badge bg-success">在職</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if request.user.lv >= 9 or request.user.pk == emp.pk %}
+            <a href="{% url 'accounts:employee_edit' emp.pk %}" class="btn btn-sm btn-outline-secondary">編輯</a>
+            <a href="{% url 'accounts:employee_reset_password' emp.pk %}" class="btn btn-sm btn-outline-warning">重設密碼</a>
+            {% endif %}
+            {% if request.user.lv >= 9 %}
+              {% if emp.resigned_date %}
+              <form method="post" action="{% url 'accounts:employee_restore' emp.pk %}" class="d-inline"
+                    onsubmit="return confirm('確定要復職此員工？')">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-success">復職</button>
+              </form>
+              {% elif emp.pk != request.user.pk %}
+              <form method="post" action="{% url 'accounts:employee_resign' emp.pk %}" class="d-inline"
+                    onsubmit="return confirm('確定要讓此員工離職？')">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger">離職</button>
+              </form>
+              {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-4">尚無員工資料</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

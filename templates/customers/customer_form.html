@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% load form_tags %}
+{% block title %}{{ action }}客戶{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <a href="{% url 'customers:customer_list' %}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h5 class="fw-bold mb-0">{{ action }}客戶</h5>
+</div>
+
+<div class="card border-0 shadow-sm" style="max-width:540px;">
+  <div class="card-body p-4">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <div class="row g-3">
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">客戶姓名 <span class="text-danger">*</span></label>
+          {{ form.name|bs5 }}
+          {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">手機</label>
+          {{ form.cellphone|bs5 }}
+          {% if form.cellphone.errors %}<div class="text-danger small mt-1">{{ form.cellphone.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">地址</label>
+          {{ form.address|bs5 }}
+          {% if form.address.errors %}<div class="text-danger small mt-1">{{ form.address.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">備註</label>
+          {{ form.note|bs5 }}
+          {% if form.note.errors %}<div class="text-danger small mt-1">{{ form.note.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+
+      <hr class="my-4">
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary px-4">
+          <i class="bi bi-check-lg me-1"></i>儲存
+        </button>
+        <a href="{% url 'customers:customer_list' %}" class="btn btn-outline-secondary">取消</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
