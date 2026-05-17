@@ -1,5 +1,6 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
+from django.db.models.deletion import ProtectedError
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views import View
 from django.views.generic import ListView
@@ -49,3 +50,17 @@ class CustomerEditView(LoginRequiredMixin, LevelRequiredMixin, View):
             messages.success(request, "客戶資料更新成功。")
             return redirect("customers:customer_list")
         return render(request, self.template_name, {"form": form, "action": "編輯", "customer": customer})
+
+
+class CustomerDeleteView(LoginRequiredMixin, LevelRequiredMixin, View):
+    min_lv = LV_SALES
+
+    def post(self, request, pk):
+        customer = get_object_or_404(Customer, pk=pk)
+        name = customer.name
+        try:
+            customer.delete()
+            messages.success(request, f"客戶「{name}」已刪除。")
+        except ProtectedError:
+            messages.error(request, f"客戶「{name}」有關聯訂單，無法刪除。請先刪除相關訂單。")
+        return redirect("customers:customer_list")

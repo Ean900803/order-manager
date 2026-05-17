@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% load form_tags %}
-{% block title %}新增訂單{% endblock %}
+{% block title %}{{ action }}訂單{% endblock %}
 
 {% block content %}
 <div class="d-flex align-items-center gap-2 mb-4">
-  <a href="{% url 'orders:list' %}" class="btn btn-sm btn-outline-secondary">
+  <a href="{% if back_url %}{{ back_url }}{% else %}{% url 'orders:list' %}{% endif %}" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-arrow-left"></i>
   </a>
-  <h5 class="fw-bold mb-0">新增訂單</h5>
+  <h5 class="fw-bold mb-0">{{ action }}訂單</h5>
 </div>
 
 <form method="post" id="order-form" novalidate>
@@ -122,9 +122,9 @@
 
   <div class="d-flex gap-2">
     <button type="submit" class="btn btn-primary px-4">
-      <i class="bi bi-check-lg me-1"></i>建立訂單
+      <i class="bi bi-check-lg me-1"></i>{% if action == '編輯' %}儲存訂單{% else %}建立訂單{% endif %}
     </button>
-    <a href="{% url 'orders:list' %}" class="btn btn-outline-secondary">取消</a>
+    <a href="{% if back_url %}{{ back_url }}{% else %}{% url 'orders:list' %}{% endif %}" class="btn btn-outline-secondary">取消</a>
   </div>
 </form>
 

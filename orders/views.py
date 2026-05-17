@@ -4,6 +4,8 @@ from django.contrib import messages
 from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
+from django.utils import timezone
 from django.views import View
 from django.views.generic import ListView
 
@@ -69,6 +71,74 @@ class OrderCreateView(LoginRequiredMixin, LevelRequiredMixin, View):
             "product_data_json": json.dumps(self._product_data()),
             "action": "新增",
         })
+
+
+class OrderEditView(LoginRequiredMixin, LevelRequiredMixin, View):
+    template_name = "orders/order_form.html"
+    min_lv = LV_EMPLOYEE
+
+    def _product_data(self):
+        products = Product.objects.filter(deleted_at__isnull=True).select_related("category")
+        return {str(p.pk): {"price": str(p.price), "cost": str(p.cost), "name": p.name} for p in products}
+
+    def get(self, request, pk):
+        order = get_object_or_404(Order, pk=pk, deleted_at__isnull=True)
+        form = OrderForm(instance=order)
+        formset = OrderRecordFormSet(
+            instance=order,
+            queryset=order.records.filter(deleted_at__isnull=True),
+        )
+        return render(request, self.template_name, {
+            "form": form,
+            "formset": formset,
+            "product_data_json": json.dumps(self._product_data()),
+            "action": "編輯",
+            "order": order,
+            "back_url": reverse("orders:detail", kwargs={"pk": pk}),
+        })
+
+    def post(self, request, pk):
+        order = get_object_or_404(Order, pk=pk, deleted_at__isnull=True)
+        form = OrderForm(request.POST, instance=order)
+        formset = OrderRecordFormSet(
+            request.POST,
+            instance=order,
+            queryset=order.records.filter(deleted_at__isnull=True),
+        )
+        if form.is_valid() and formset.is_valid():
+            with transaction.atomic():
+                order = form.save()
+                records = formset.save(commit=False)
+                for record in records:
+                    if not record.pk:
+                        record.price = record.product.price
+                        record.cost = record.product.cost
+                    record.order = order
+                    record.save()
+                for obj in formset.deleted_objects:
+                    obj.delete()
+            messages.success(request, "訂單更新成功。")
+            return redirect("orders:detail", pk=order.pk)
+        return render(request, self.template_name, {
+            "form": form,
+            "formset": formset,
+            "product_data_json": json.dumps(self._product_data()),
+            "action": "編輯",
+            "order": order,
+            "back_url": reverse("orders:detail", kwargs={"pk": pk}),
+        })
+
+
+class OrderDeleteView(LoginRequiredMixin, LevelRequiredMixin, View):
+    min_lv = LV_MANAGER
+
+    def post(self, request, pk):
+        order = get_object_or_404(Order, pk=pk, deleted_at__isnull=True)
+        order.deleted_at = timezone.now()
+        order.deleted_by = request.user
+        order.save(update_fields=["deleted_at", "deleted_by"])
+        messages.success(request, f"訂單 #{pk} 已刪除。")
+        return redirect("orders:list")
 
 
 class OrderDetailView(LoginRequiredMixin, View):

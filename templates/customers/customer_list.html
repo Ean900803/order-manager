@@ -26,6 +26,11 @@
           <td>
             {% if request.user.lv >= 2 %}
             <a href="{% url 'customers:customer_edit' c.pk %}" class="btn btn-sm btn-outline-secondary">編輯</a>
+            <form method="post" action="{% url 'customers:customer_delete' c.pk %}" class="d-inline"
+                  onsubmit="return confirm('確定要刪除客戶「{{ c.name }}」？若有關聯訂單則無法刪除。')">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-danger">刪除</button>
+            </form>
             {% endif %}
           </td>
         </tr>

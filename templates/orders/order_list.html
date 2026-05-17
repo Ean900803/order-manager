@@ -27,6 +27,9 @@
           <td>{{ order.total|floatformat:2 }}</td>
           <td>
             <a href="{% url 'orders:detail' order.pk %}" class="btn btn-sm btn-outline-primary">查看</a>
+            {% if request.user.lv >= 1 %}
+            <a href="{% url 'orders:edit' order.pk %}" class="btn btn-sm btn-outline-secondary">編輯</a>
+            {% endif %}
             {% if request.user.lv >= 3 %}
             <a href="{% url 'orders:status' order.pk %}" class="btn btn-sm btn-outline-secondary">改狀態</a>
             {% endif %}
