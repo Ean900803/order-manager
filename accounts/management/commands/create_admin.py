@@ -55,5 +55,5 @@ class Command(BaseCommand):
         )
 
         self.stdout.write(self.style.SUCCESS(
-            f"✅ 管理員帳號建立成功：{emp.username}（{emp.name}），權限等級：{emp.get_lv_display()}"
+            f"管理員帳號建立成功：{emp.username}（{emp.name}），權限等級：{emp.get_lv_display()}"
         ))
