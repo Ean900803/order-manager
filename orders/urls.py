@@ -11,5 +11,5 @@ urlpatterns = [
     path("<int:pk>/delete/", views.OrderDeleteView.as_view(), name="delete"),
     path("<int:pk>/status/", views.OrderStatusView.as_view(), name="status"),
     path("<int:pk>/cancel/", views.OrderCancelView.as_view(), name="cancel"),
-    path("api/product/<int:pk>/price/", views.ProductPriceApiView.as_view(), name="product_price_api"),
+    path("api/product/<int:pk>/units/", views.ProductUnitsApiView.as_view(), name="product_units_api"),
 ]

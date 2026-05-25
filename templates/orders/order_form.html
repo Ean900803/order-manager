@@ -38,64 +38,85 @@
     </div>
   </div>
 
-  <!-- Formset management -->
-  {{ formset.management_form }}
+  {% if existing_records %}
+  <!-- 既有明細（read-only，可標記刪除）-->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-white fw-semibold">
+      <i class="bi bi-card-list me-2 text-secondary"></i>既有明細（不可修改數量／價格，只能刪除）
+    </div>
+    <div class="table-responsive">
+      <table class="table mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">商品</th>
+            <th>單位</th>
+            <th>單價</th>
+            <th>數量</th>
+            <th>折扣%</th>
+            <th>小計</th>
+            <th style="width:90px">刪除</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in existing_records %}
+          <tr>
+            <td class="ps-3">{{ r.product.name }}</td>
+            <td>{{ r.unit.name }}</td>
+            <td>{{ r.price }}</td>
+            <td>{{ r.quantity }}</td>
+            <td>{% widthratio r.discount 1 100 %}</td>
+            <td class="fw-semibold">{{ r.subtotal|floatformat:2 }}</td>
+            <td>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox"
+                       name="delete_record_ids" value="{{ r.pk }}"
+                       id="del-{{ r.pk }}">
+                <label class="form-check-label small text-danger" for="del-{{ r.pk }}">刪除</label>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
 
-  <!-- 訂單明細 -->
+  <!-- 新增明細 -->
+  {{ formset.management_form }}
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-header bg-white d-flex justify-content-between align-items-center">
-      <span class="fw-semibold"><i class="bi bi-list-ul me-2 text-primary"></i>訂單明細</span>
+      <span class="fw-semibold"><i class="bi bi-plus-circle me-2 text-primary"></i>{% if existing_records %}追加{% endif %}新明細</span>
       <button type="button" class="btn btn-sm btn-outline-primary" id="add-row">
-        <i class="bi bi-plus-lg me-1"></i>新增明細
+        <i class="bi bi-plus-lg me-1"></i>新增一列
       </button>
     </div>
     <div class="table-responsive">
-      <table class="table mb-0 align-middle" id="formset-table">
+      <table class="table mb-0 align-middle" id="new-formset-table">
         <thead class="table-light">
           <tr>
-            <th class="ps-3" style="min-width:240px">商品</th>
+            <th class="ps-3" style="min-width:220px">商品</th>
+            <th style="width:140px">單位</th>
             <th style="width:110px">單價</th>
             <th style="width:100px">數量</th>
-            <th style="width:140px">折扣(%)</th>
+            <th style="width:130px">折扣 (%)</th>
             <th style="width:120px">小計</th>
             <th style="width:52px"></th>
           </tr>
         </thead>
-        <tbody id="formset-body">
-          {% for rec_form in formset %}
-          <tr class="formset-row">
-            <td class="ps-3">
-              {{ rec_form.id }}
-              {{ rec_form.product|bs5 }}
-              {% if rec_form.product.errors %}
-              <div class="text-danger small">{{ rec_form.product.errors.0 }}</div>
-              {% endif %}
-            </td>
+        <tbody id="new-formset-body">
+          {% for f in formset %}
+          <tr class="new-row">
+            <td class="ps-3">{{ f.product|bs5 }}{% if f.product.errors %}<div class="text-danger small">{{ f.product.errors.0 }}</div>{% endif %}</td>
             <td>
-              <input type="text" class="form-control form-control-sm unit-price" readonly placeholder="—">
+              <select name="{{ f.unit.html_name }}" id="{{ f.unit.id_for_label }}" class="form-select form-select-sm unit-select"></select>
+              {% if f.unit.errors %}<div class="text-danger small">{{ f.unit.errors.0 }}</div>{% endif %}
             </td>
+            <td><input type="text" class="form-control form-control-sm unit-price" readonly placeholder="—"></td>
+            <td>{{ f.quantity|bs5 }}{% if f.quantity.errors %}<div class="text-danger small">{{ f.quantity.errors.0 }}</div>{% endif %}</td>
+            <td><div class="input-group input-group-sm">{{ f.discount_pct|bs5 }}<span class="input-group-text">%</span></div>{% if f.discount_pct.errors %}<div class="text-danger small">{{ f.discount_pct.errors.0 }}</div>{% endif %}</td>
+            <td><input type="text" class="form-control form-control-sm row-subtotal" readonly placeholder="0.00"></td>
             <td>
-              {{ rec_form.quantity|bs5 }}
-              {% if rec_form.quantity.errors %}
-              <div class="text-danger small">{{ rec_form.quantity.errors.0 }}</div>
-              {% endif %}
-            </td>
-            <td>
-              <div class="input-group input-group-sm">
-                {{ rec_form.discount|bs5 }}
-                <span class="input-group-text">%</span>
-              </div>
-              {% if rec_form.discount.errors %}
-              <div class="text-danger small">{{ rec_form.discount.errors.0 }}</div>
-              {% endif %}
-            </td>
-            <td>
-              <input type="text" class="form-control form-control-sm row-subtotal" readonly placeholder="0.00">
-            </td>
-            <td>
-              {% if rec_form.DELETE %}
-              <div class="d-none">{{ rec_form.DELETE }}</div>
-              {% endif %}
               <button type="button" class="btn btn-sm btn-outline-danger remove-row">
                 <i class="bi bi-trash"></i>
               </button>
@@ -104,19 +125,6 @@
           {% endfor %}
         </tbody>
       </table>
-    </div>
-    <div class="card-footer bg-white d-flex justify-content-between align-items-center py-2 px-3">
-      {% if formset.non_form_errors %}
-      <div class="text-danger small">
-        <i class="bi bi-exclamation-circle me-1"></i>{{ formset.non_form_errors.0 }}
-      </div>
-      {% else %}
-      <span class="text-muted small">至少填寫一筆明細</span>
-      {% endif %}
-      <div class="d-flex align-items-center gap-2">
-        <span class="text-muted small">訂單總額</span>
-        <span class="fw-bold fs-5 text-primary" id="order-total">0.00</span>
-      </div>
     </div>
   </div>
 
@@ -128,41 +136,32 @@
   </div>
 </form>
 
-<!-- 空白 row 樣板（JS clone 用） -->
+<!-- 空白 row 樣板 -->
 <template id="empty-row-template">
-  <tr class="formset-row">
+  <tr class="new-row">
     <td class="ps-3">
-      <input type="hidden" name="records-__prefix__-id" id="id_records-__prefix__-id">
-      <select name="records-__prefix__-product" id="id_records-__prefix__-product"
-              class="form-select form-select-sm product-select">
+      <select name="new-__prefix__-product" id="id_new-__prefix__-product" class="form-select form-select-sm product-select">
         <option value="">--- 請選擇商品 ---</option>
-        {% for p in formset.forms.0.fields.product.queryset %}
-        <option value="{{ p.pk }}" data-price="{{ p.price }}" data-cost="{{ p.cost }}">
-          {{ p.category.name }} / {{ p.name }}
-        </option>
-        {% endfor %}
+        {% for f in formset %}{% if forloop.first %}{% for p in f.fields.product.queryset %}
+        <option value="{{ p.pk }}">{{ p.category.name }} / {{ p.name }}</option>
+        {% endfor %}{% endif %}{% endfor %}
       </select>
     </td>
     <td>
-      <input type="text" class="form-control form-control-sm unit-price" readonly placeholder="—">
+      <select name="new-__prefix__-unit" id="id_new-__prefix__-unit" class="form-select form-select-sm unit-select"></select>
     </td>
+    <td><input type="text" class="form-control form-control-sm unit-price" readonly placeholder="—"></td>
     <td>
-      <input type="number" name="records-__prefix__-quantity" id="id_records-__prefix__-quantity"
-             class="form-control form-control-sm" min="1" value="1">
+      <input type="number" name="new-__prefix__-quantity" id="id_new-__prefix__-quantity" class="form-control form-control-sm" min="1" value="1">
     </td>
     <td>
       <div class="input-group input-group-sm">
-        <input type="number" name="records-__prefix__-discount" id="id_records-__prefix__-discount"
-               class="form-control" min="0" max="100" step="0.01" value="0">
+        <input type="number" name="new-__prefix__-discount_pct" id="id_new-__prefix__-discount_pct" class="form-control" min="0" max="100" step="0.01" value="0">
         <span class="input-group-text">%</span>
       </div>
     </td>
+    <td><input type="text" class="form-control form-control-sm row-subtotal" readonly placeholder="0.00"></td>
     <td>
-      <input type="text" class="form-control form-control-sm row-subtotal" readonly placeholder="0.00">
-    </td>
-    <td>
-      <input type="checkbox" name="records-__prefix__-DELETE" id="id_records-__prefix__-DELETE"
-             class="d-none delete-checkbox">
       <button type="button" class="btn btn-sm btn-outline-danger remove-row">
         <i class="bi bi-trash"></i>
       </button>
@@ -173,64 +172,70 @@
 
 {% block extra_js %}
 <script>
-const PRODUCT_DATA = {{ product_data_json|safe }};
-const TOTAL_FORMS  = document.getElementById('id_records-TOTAL_FORMS');
+const PRODUCT_UNIT_DATA = {{ product_unit_data_json|safe }};
+const TOTAL_FORMS = document.getElementById('id_new-TOTAL_FORMS');
 
-function getPrice(productId) {
-  return PRODUCT_DATA[productId] ? parseFloat(PRODUCT_DATA[productId].price) : 0;
+function refreshUnitOptions(row) {
+  const productSel = row.querySelector('.product-select') || row.querySelector('[id$="-product"]');
+  const unitSel = row.querySelector('.unit-select');
+  if (!productSel || !unitSel) return;
+  const pid = productSel.value;
+  const opts = PRODUCT_UNIT_DATA[pid] || [];
+  const prev = unitSel.value;
+  unitSel.innerHTML = '<option value="">--- 請選擇單位 ---</option>';
+  opts.forEach(o => {
+    const el = document.createElement('option');
+    el.value = o.unit_id;
+    el.textContent = o.unit_name;
+    el.dataset.price = o.price;
+    el.dataset.cost = o.cost;
+    el.dataset.rate = o.conversion_rate;
+    unitSel.appendChild(el);
+  });
+  if (prev) unitSel.value = prev;
+  calcRow(row);
 }
 
 function calcRow(row) {
-  const sel   = row.querySelector('[id$="-product"]');
-  const qty   = parseFloat(row.querySelector('[id$="-quantity"]')?.value) || 0;
-  const disc  = parseFloat(row.querySelector('[id$="-discount"]')?.value) || 0;
-  const price = getPrice(sel?.value);
+  const unitSel = row.querySelector('.unit-select');
+  const opt = unitSel?.selectedOptions[0];
+  const price = opt ? parseFloat(opt.dataset.price || 0) : 0;
+  const qty = parseFloat(row.querySelector('[id$="-quantity"]')?.value) || 0;
+  const disc = parseFloat(row.querySelector('[id$="-discount_pct"]')?.value) || 0;
   const priceInput = row.querySelector('.unit-price');
   if (priceInput) priceInput.value = price ? price.toFixed(2) : '';
   const sub = price * qty * (1 - disc / 100);
   const subInput = row.querySelector('.row-subtotal');
-  if (subInput) subInput.value = sub.toFixed(2);
-  return sub;
-}
-
-function recalcTotal() {
-  let total = 0;
-  document.querySelectorAll('.formset-row').forEach(row => {
-    const del = row.querySelector('.delete-checkbox');
-    if (!del || !del.checked) total += calcRow(row);
-  });
-  document.getElementById('order-total').textContent = total.toFixed(2);
+  if (subInput) subInput.value = price && qty ? sub.toFixed(2) : '';
 }
 
 function wireRow(row) {
-  row.addEventListener('change', recalcTotal);
-  row.addEventListener('input',  recalcTotal);
+  const prodSel = row.querySelector('.product-select') || row.querySelector('[id$="-product"]');
+  if (prodSel) {
+    prodSel.classList.add('product-select');
+    prodSel.addEventListener('change', () => refreshUnitOptions(row));
+  }
+  row.addEventListener('change', () => calcRow(row));
+  row.addEventListener('input', () => calcRow(row));
   row.querySelector('.remove-row').addEventListener('click', () => {
-    const del = row.querySelector('.delete-checkbox');
-    if (del) { del.checked = true; row.classList.add('d-none'); }
-    else { row.remove(); }
-    recalcTotal();
+    row.remove();
+    // 縮減 TOTAL_FORMS（盡量保持簡單；後端會依實際 prefix 處理）
   });
 }
 
-// Wire existing rows
-document.querySelectorAll('.formset-row').forEach(row => {
-  const sel = row.querySelector('[id$="-product"]');
-  if (sel) sel.classList.add('product-select');
+document.querySelectorAll('.new-row').forEach(row => {
   wireRow(row);
+  refreshUnitOptions(row);
 });
 
-// Add new row
 document.getElementById('add-row').addEventListener('click', () => {
-  const idx  = parseInt(TOTAL_FORMS.value);
+  const idx = parseInt(TOTAL_FORMS.value);
   const tmpl = document.getElementById('empty-row-template').content.cloneNode(true);
-  const row  = tmpl.querySelector('tr');
+  const row = tmpl.querySelector('tr');
   row.innerHTML = row.innerHTML.replaceAll('__prefix__', idx);
-  document.getElementById('formset-body').appendChild(row);
+  document.getElementById('new-formset-body').appendChild(row);
   TOTAL_FORMS.value = idx + 1;
-  wireRow(document.querySelector('#formset-body tr:last-child'));
+  wireRow(document.querySelector('#new-formset-body tr:last-child'));
 });
-
-recalcTotal();
 </script>
 {% endblock %}

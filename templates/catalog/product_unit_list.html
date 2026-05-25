@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ product.name }} 單位定價{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <a href="{% url 'catalog:product_list' %}" class="btn btn-sm btn-outline-secondary me-2">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <strong>{{ product.name }}</strong> 的單位定價
+    <small class="text-muted">（基準單位：{{ product.base_unit.name }}）</small>
+  </div>
+  {% if request.user.lv >= 2 %}
+  <a href="{% url 'catalog:product_unit_create' product.pk %}" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-lg me-1"></i>新增 / 替換定價
+  </a>
+  {% endif %}
+</div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr><th>單位</th><th>換算比例</th><th>售價</th><th>成本</th><th>狀態</th><th>建立</th><th>操作</th></tr>
+      </thead>
+      <tbody>
+        {% for pu in units %}
+        <tr class="{% if pu.status == 'inactive' %}table-secondary text-muted{% endif %}">
+          <td>{{ pu.unit.name }}</td>
+          <td>1 {{ pu.unit.name }} = {{ pu.conversion_rate }} {{ product.base_unit.name }}</td>
+          <td>{{ pu.price }}</td>
+          <td>{{ pu.cost }}</td>
+          <td>
+            {% if pu.status == 'active' %}
+              <span class="badge bg-success">啟用中</span>
+            {% else %}
+              <span class="badge bg-secondary">已失效</span>
+            {% endif %}
+          </td>
+          <td>
+            <small>{{ pu.created_at|date:"Y-m-d" }}<br>{{ pu.created_by.name }}</small>
+          </td>
+          <td>
+            {% if pu.status == 'active' and request.user.lv >= 2 %}
+            <form method="post" action="{% url 'catalog:product_unit_deactivate' product.pk pu.pk %}"
+                  class="d-inline" onsubmit="return confirm('確定失效此筆定價？')">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-warning">失效</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-4">尚無定價</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

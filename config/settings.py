@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "catalog",
     "customers",
     "orders",
+    "inventory",
 ]
 
 MIDDLEWARE = [
@@ -90,7 +91,7 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"

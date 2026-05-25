@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load form_tags %}
+{% block title %}新增進貨{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <a href="{% url 'inventory:stock_list' %}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h5 class="fw-bold mb-0">新增進貨</h5>
+</div>
+<div class="card border-0 shadow-sm" style="max-width:560px;">
+  <div class="card-body p-4">
+    <p class="text-muted small mb-3">系統會依「進貨單位 × 換算比例」自動算出剩餘的基準單位數，存入 <code>quantity_remaining</code>。</p>
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label fw-semibold">商品 <span class="text-danger">*</span></label>
+          {{ form.product|bs5 }}
+          {% if form.product.errors %}<div class="text-danger small mt-1">{{ form.product.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">進貨單位 <span class="text-danger">*</span></label>
+          {{ form.unit|bs5 }}
+          {% if form.unit.errors %}<div class="text-danger small mt-1">{{ form.unit.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">進貨數量 <span class="text-danger">*</span></label>
+          {{ form.quantity|bs5 }}
+          {% if form.quantity.errors %}<div class="text-danger small mt-1">{{ form.quantity.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">基準單位成本 <span class="text-danger">*</span></label>
+          <div class="input-group"><span class="input-group-text">$</span>{{ form.unit_cost|bs5 }}</div>
+          {% if form.unit_cost.errors %}<div class="text-danger small mt-1">{{ form.unit_cost.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">進貨日期 <span class="text-danger">*</span></label>
+          {{ form.restocked_date|bs5 }}
+          {% if form.restocked_date.errors %}<div class="text-danger small mt-1">{{ form.restocked_date.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+      {% if form.non_field_errors %}
+      <div class="alert alert-danger mt-3 py-2 small">{{ form.non_field_errors.0 }}</div>
+      {% endif %}
+      <hr class="my-4">
+      <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check-lg me-1"></i>儲存</button>
+      <a href="{% url 'inventory:stock_list' %}" class="btn btn-outline-secondary">取消</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -50,8 +50,6 @@ class Command(BaseCommand):
             name=name,
             cellphone=cellphone,
             lv=LV_ADMIN,
-            is_staff=True,
-            is_superuser=True,
         )
 
         self.stdout.write(self.style.SUCCESS(

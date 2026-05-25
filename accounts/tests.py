@@ -1,11 +1,15 @@
+from datetime import date
+from decimal import Decimal
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import Employee, LV_EMPLOYEE, LV_SALES, LV_MANAGER, LV_ADMIN
-from catalog.models import Category, Product
+from catalog.models import Category, Product, Unit, ProductUnit
 from customers.models import Customer
 from orders.models import Order, OrderRecord
+from inventory.models import Stock
+from inventory.services import consume_for_order, estimate_shortage
 
 
 def make_employee(username, lv=LV_EMPLOYEE, resigned=False, **kwargs):
@@ -18,9 +22,28 @@ def make_employee(username, lv=LV_EMPLOYEE, resigned=False, **kwargs):
     )
     if resigned:
         emp.resigned_date = timezone.now()
-        emp.is_active = False
-        emp.save()
+        emp.save(update_fields=["resigned_date"])
     return emp
+
+
+_admin_for_fixtures = None
+
+
+def _fixture_user():
+    global _admin_for_fixtures
+    if _admin_for_fixtures is None or not Employee.objects.filter(pk=_admin_for_fixtures.pk).exists():
+        _admin_for_fixtures = Employee.objects.create_user(
+            username="_fixture_admin",
+            password="fixture",
+            name="Fixture",
+            cellphone="0900000000",
+            lv=LV_ADMIN,
+        )
+    return _admin_for_fixtures
+
+
+def make_unit(name="個"):
+    return Unit.objects.get_or_create(name=name)[0]
 
 
 def make_category(name="測試分類", disabled=False):
@@ -30,10 +53,17 @@ def make_category(name="測試分類", disabled=False):
     return cat
 
 
-def make_product(category, name="測試商品", price="100.00", cost="60.00", disabled=False):
-    p = Product.objects.create(category=category, name=name, price=price, cost=cost)
+def make_product(category, name="測試商品", price=Decimal("100.00"), cost=Decimal("60.00"),
+                 base_unit=None, disabled=False, created_by=None):
+    base_unit = base_unit or make_unit("個")
+    user = created_by or _fixture_user()
+    p = Product.objects.create(category=category, name=name, base_unit=base_unit, created_by=user)
+    ProductUnit.objects.create(
+        product=p, unit=base_unit, conversion_rate=1,
+        price=Decimal(price), cost=Decimal(cost), created_by=user,
+    )
     if disabled:
-        p.disable()
+        p.disable(by=user)
     return p
 
 
@@ -41,14 +71,30 @@ def make_customer(name="測試客戶"):
     return Customer.objects.create(name=name, cellphone="0987654321")
 
 
-def make_order(customer, status=Order.STATUS_PENDING):
+def make_order(customer, status=Order.Status.PENDING):
     return Order.objects.create(customer=customer, status=status)
 
 
-def make_record(order, product, qty=1, discount="0"):
+def make_record(order, product, qty=1, discount=Decimal("0"), unit=None):
+    unit = unit or product.base_unit
+    pu = product.active_unit(unit)
     return OrderRecord.objects.create(
-        order=order, product=product,
-        quantity=qty, price=product.price, cost=product.cost, discount=discount,
+        order=order, product=product, unit=unit,
+        quantity=qty, price=pu.price, cost=pu.cost,
+        conversion_rate=pu.conversion_rate,
+        discount=Decimal(discount),
+        created_by=_fixture_user(),
+    )
+
+
+def make_stock(product, qty_base, unit_cost=Decimal("10"), restocked_date=None):
+    unit = product.base_unit
+    return Stock.objects.create(
+        product=product, unit=unit,
+        quantity=qty_base, quantity_remaining=qty_base,
+        unit_cost=Decimal(unit_cost),
+        restocked_date=restocked_date or date(2026, 1, 1),
+        restocked_by=_fixture_user(),
     )
 
 
@@ -137,7 +183,6 @@ class PermissionTests(TestCase):
         self.assertEqual(resp.status_code, 200)
 
     def test_manager_cannot_change_order_without_permission(self):
-        """lv=1 員工無法修改訂單狀態"""
         order = make_order(self.customer)
         self._login(self.employee)
         resp = self.client.get(reverse("orders:status", args=[order.pk]))
@@ -193,38 +238,75 @@ class CatalogTests(TestCase):
         self.assertIsNone(p.deleted_at)
 
 
-# ── Order calculation ──────────────────────────────────────────────────────────
+# ── ProductUnit (multi-unit pricing) ───────────────────────────────────────────
+
+class ProductUnitTests(TestCase):
+    def setUp(self):
+        self.user = make_employee("pu_user", lv=LV_SALES)
+        self.cat = make_category()
+        self.pcs = make_unit("個")
+        self.box = make_unit("箱")
+        self.product = make_product(self.cat, base_unit=self.pcs, price=Decimal("30"), cost=Decimal("15"))
+
+    def test_only_one_active_per_unit(self):
+        """同 product+unit 建新 active 時，舊 active 變 inactive"""
+        ProductUnit.objects.create(
+            product=self.product, unit=self.pcs, conversion_rate=1,
+            price=Decimal("40"), cost=Decimal("20"),
+            created_by=self.user,
+        )
+        # 模擬 form 的 deactivate 邏輯
+        active_existing = self.product.product_units.filter(unit=self.pcs, status=ProductUnit.Status.ACTIVE).first()
+        # 模擬 form 內邏輯：建新 active 前，把舊 active 改 inactive
+        self.product.product_units.filter(
+            unit=self.pcs, status=ProductUnit.Status.ACTIVE
+        ).exclude(pk=active_existing.pk).update(status=ProductUnit.Status.INACTIVE)
+        actives = self.product.product_units.filter(unit=self.pcs, status=ProductUnit.Status.ACTIVE).count()
+        self.assertEqual(actives, 1)
+
+    def test_box_pricing_independent_from_base(self):
+        ProductUnit.objects.create(
+            product=self.product, unit=self.box, conversion_rate=12,
+            price=Decimal("320"), cost=Decimal("170"),
+            created_by=self.user,
+        )
+        active_box = self.product.active_unit(self.box)
+        self.assertEqual(active_box.conversion_rate, 12)
+        self.assertEqual(active_box.price, Decimal("320"))
+
+
+# ── Order calculation (discount 0-1) ───────────────────────────────────────────
 
 class OrderCalculationTests(TestCase):
     def setUp(self):
         self.cat = make_category()
-        self.product = make_product(self.cat, price="200.00", cost="100.00")
+        self.product = make_product(self.cat, price=Decimal("200"), cost=Decimal("100"))
         self.customer = make_customer()
 
     def test_subtotal_no_discount(self):
         order = make_order(self.customer)
-        rec = make_record(order, self.product, qty=3, discount="0")
-        self.assertAlmostEqual(float(rec.subtotal), 600.0)
+        rec = make_record(order, self.product, qty=3, discount=Decimal("0"))
+        self.assertEqual(rec.subtotal, Decimal("600.00"))
 
     def test_subtotal_with_discount(self):
         order = make_order(self.customer)
-        rec = make_record(order, self.product, qty=2, discount="10")
-        # 200 * 2 * (1 - 10/100) = 360
-        self.assertAlmostEqual(float(rec.subtotal), 360.0)
+        rec = make_record(order, self.product, qty=2, discount=Decimal("0.10"))
+        # 200 * 2 * (1 - 0.10) = 360
+        self.assertEqual(rec.subtotal, Decimal("360.00"))
 
     def test_order_total(self):
         order = make_order(self.customer)
-        make_record(order, self.product, qty=1, discount="0")   # 200
-        make_record(order, self.product, qty=2, discount="50")  # 200 * 2 * 0.5 = 200
-        self.assertAlmostEqual(float(order.total), 400.0)
+        make_record(order, self.product, qty=1, discount=Decimal("0"))      # 200
+        make_record(order, self.product, qty=2, discount=Decimal("0.50"))   # 200
+        self.assertEqual(order.total, Decimal("400.00"))
 
     def test_order_total_excludes_soft_deleted_records(self):
         order = make_order(self.customer)
-        rec1 = make_record(order, self.product, qty=1, discount="0")   # 200
-        rec2 = make_record(order, self.product, qty=1, discount="0")   # 200 (but deleted)
+        make_record(order, self.product, qty=1, discount=Decimal("0"))
+        rec2 = make_record(order, self.product, qty=1, discount=Decimal("0"))
         rec2.deleted_at = timezone.now()
         rec2.save()
-        self.assertAlmostEqual(float(order.total), 200.0)
+        self.assertEqual(order.total, Decimal("200.00"))
 
 
 # ── Order cancel ───────────────────────────────────────────────────────────────
@@ -237,10 +319,10 @@ class OrderCancelTests(TestCase):
         self.customer = make_customer()
 
     def test_cancel_order_sets_status(self):
-        order = make_order(self.customer, status=Order.STATUS_CONFIRMED)
+        order = make_order(self.customer, status=Order.Status.CONFIRMED)
         self.client.post(reverse("orders:cancel", args=[order.pk]))
         order.refresh_from_db()
-        self.assertEqual(order.status, Order.STATUS_CANCELLED)
+        self.assertEqual(order.status, Order.Status.CANCELLED)
 
     def test_disabled_product_not_in_order_form(self):
         cat = make_category()
@@ -249,7 +331,49 @@ class OrderCancelTests(TestCase):
         emp = make_employee("emp2", lv=LV_EMPLOYEE)
         self.client.login(username="emp2", password="testpass123")
         resp = self.client.get(reverse("orders:create"))
-        # 抓 formset 第一個 form 的 product queryset
         qs = list(resp.context["formset"].forms[0].fields["product"].queryset)
         self.assertIn(active, qs)
         self.assertNotIn(disabled, qs)
+
+    def test_completed_order_cannot_cancel(self):
+        order = make_order(self.customer, status=Order.Status.COMPLETED)
+        resp = self.client.post(reverse("orders:cancel", args=[order.pk]))
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.COMPLETED)
+
+
+# ── FIFO inventory ─────────────────────────────────────────────────────────────
+
+class FIFOTests(TestCase):
+    def setUp(self):
+        self.cat = make_category()
+        self.product = make_product(self.cat, price=Decimal("30"), cost=Decimal("15"))
+        self.customer = make_customer()
+
+    def test_fifo_consumes_earliest_batch_first(self):
+        make_stock(self.product, qty_base=20, restocked_date=date(2026, 1, 1))
+        make_stock(self.product, qty_base=20, restocked_date=date(2026, 2, 1))
+        order = make_order(self.customer)
+        make_record(order, self.product, qty=15)
+
+        consume_for_order(order, by=_fixture_user())
+        batches = list(Stock.objects.filter(product=self.product).order_by("restocked_date"))
+        self.assertEqual(batches[0].quantity_remaining, 5)   # 20 - 15
+        self.assertEqual(batches[1].quantity_remaining, 20)  # 未動
+
+    def test_fifo_negative_remainder_on_shortage(self):
+        make_stock(self.product, qty_base=10, restocked_date=date(2026, 1, 1))
+        order = make_order(self.customer)
+        make_record(order, self.product, qty=25)
+
+        shortage = consume_for_order(order, by=_fixture_user())
+        batch = Stock.objects.get(product=self.product)
+        self.assertEqual(batch.quantity_remaining, -15)  # 10 - 25
+        self.assertEqual(shortage[self.product], 15)
+
+    def test_estimate_shortage(self):
+        make_stock(self.product, qty_base=5, restocked_date=date(2026, 1, 1))
+        order = make_order(self.customer)
+        make_record(order, self.product, qty=8)
+        shortage = estimate_shortage(order.records.all())
+        self.assertEqual(shortage[self.product], 3)
