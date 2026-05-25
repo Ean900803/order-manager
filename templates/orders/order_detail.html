@@ -27,22 +27,23 @@
       <div class="table-responsive">
         <table class="table mb-0">
           <thead class="table-light">
-            <tr><th>商品</th><th>單價</th><th>數量</th><th>折扣(%)</th><th>小計</th></tr>
+            <tr><th>商品</th><th>單位</th><th>單價</th><th>數量</th><th>折扣%</th><th>小計</th></tr>
           </thead>
           <tbody>
             {% for r in records %}
             <tr>
               <td>{{ r.product.name }}</td>
+              <td>{{ r.unit.name }}<br><small class="text-muted">1 {{ r.unit.name }} = {{ r.conversion_rate }} {{ r.product.base_unit.name }}</small></td>
               <td>{{ r.price }}</td>
               <td>{{ r.quantity }}</td>
-              <td>{{ r.discount }}</td>
+              <td>{% widthratio r.discount 1 100 %}</td>
               <td>{{ r.subtotal|floatformat:2 }}</td>
             </tr>
             {% endfor %}
           </tbody>
           <tfoot>
             <tr class="fw-bold">
-              <td colspan="4" class="text-end">總額</td>
+              <td colspan="5" class="text-end">總額</td>
               <td>{{ order.total|floatformat:2 }}</td>
             </tr>
           </tfoot>

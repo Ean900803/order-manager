@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% load form_tags %}
+{% block title %}{{ action }}單位{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <a href="{% url 'catalog:unit_list' %}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h5 class="fw-bold mb-0">{{ action }}單位</h5>
+</div>
+<div class="card border-0 shadow-sm" style="max-width:420px;">
+  <div class="card-body p-4">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <label class="form-label fw-semibold">單位名稱 <span class="text-danger">*</span></label>
+      {{ form.name|bs5 }}
+      {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>{% endif %}
+      <hr class="my-4">
+      <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check-lg me-1"></i>儲存</button>
+      <a href="{% url 'catalog:unit_list' %}" class="btn btn-outline-secondary">取消</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

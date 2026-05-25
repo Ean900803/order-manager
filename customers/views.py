@@ -1,5 +1,6 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
+from django.db.models import Q
 from django.db.models.deletion import ProtectedError
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views import View
@@ -15,7 +16,21 @@ class CustomerListView(LoginRequiredMixin, ListView):
     model = Customer
     template_name = "customers/customer_list.html"
     context_object_name = "customers"
-    queryset = Customer.objects.all().order_by("id")
+    paginate_by = 30
+
+    def get_queryset(self):
+        qs = Customer.objects.all()
+        q = self.request.GET.get("q", "").strip()
+        if q:
+            # LIKE '%q%' OR LIKE '%q%' （無 JOIN，純 customers 表）
+            qs = qs.filter(Q(name__icontains=q) | Q(cellphone__icontains=q))
+        return qs.order_by("id")
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["q"] = self.request.GET.get("q", "")
+        ctx["sql"] = str(self.get_queryset().query)
+        return ctx
 
 
 class CustomerCreateView(LoginRequiredMixin, LevelRequiredMixin, View):

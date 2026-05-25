@@ -126,8 +126,7 @@ class EmployeeResignView(LoginRequiredMixin, LevelRequiredMixin, View):
             messages.error(request, "不能讓自己離職。")
             return redirect("accounts:employee_list")
         employee.resigned_date = timezone.now()
-        employee.is_active = False
-        employee.save(update_fields=["resigned_date", "is_active"])
+        employee.save(update_fields=["resigned_date"])
         messages.success(request, f"已將 {employee.name} 設為離職。")
         return redirect("accounts:employee_list")
 
@@ -138,7 +137,6 @@ class EmployeeRestoreView(LoginRequiredMixin, LevelRequiredMixin, View):
     def post(self, request, pk):
         employee = get_object_or_404(Employee, pk=pk)
         employee.resigned_date = None
-        employee.is_active = True
-        employee.save(update_fields=["resigned_date", "is_active"])
+        employee.save(update_fields=["resigned_date"])
         messages.success(request, f"已復職 {employee.name}。")
         return redirect("accounts:employee_list")

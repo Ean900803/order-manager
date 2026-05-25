@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}進貨記錄{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4><i class="bi bi-truck me-2"></i>進貨記錄</h4>
+  {% if request.user.lv >= 2 %}
+  <a href="{% url 'inventory:stock_create' %}" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-lg me-1"></i>新增進貨
+  </a>
+  {% endif %}
+</div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>批次 ID</th><th>進貨日</th><th>商品</th><th>進貨單位</th>
+          <th>進貨數</th><th>剩餘（基準）</th><th>基準單位成本</th><th>進貨人</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in batches %}
+        <tr class="{% if b.quantity_remaining < 0 %}table-danger{% elif b.quantity_remaining == 0 %}table-secondary text-muted{% endif %}">
+          <td>#{{ b.id }}</td>
+          <td>{{ b.restocked_date|date:"Y-m-d" }}</td>
+          <td>{{ b.product.name }}</td>
+          <td>{{ b.unit.name }}</td>
+          <td>{{ b.quantity }}</td>
+          <td>
+            {{ b.quantity_remaining }}
+            {% if b.quantity_remaining < 0 %}<span class="badge bg-danger ms-1">負庫存</span>{% endif %}
+          </td>
+          <td>${{ b.unit_cost }}</td>
+          <td>{{ b.restocked_by.name }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center text-muted py-4">尚無進貨記錄</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

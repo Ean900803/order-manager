@@ -55,6 +55,21 @@
           </a>
         </li>
         <li class="nav-item">
+          <a href="{% url 'catalog:unit_list' %}" class="nav-link text-white {% if request.resolver_match.app_name == 'catalog' and 'unit' in request.path %}active{% endif %}">
+            <i class="bi bi-rulers me-2"></i>單位管理
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'inventory:stock_balance' %}" class="nav-link text-white {% if request.resolver_match.app_name == 'inventory' and 'balance' in request.path %}active{% endif %}">
+            <i class="bi bi-boxes me-2"></i>庫存餘額
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'inventory:stock_list' %}" class="nav-link text-white {% if request.resolver_match.app_name == 'inventory' and 'stocks' in request.path and 'balance' not in request.path %}active{% endif %}">
+            <i class="bi bi-truck me-2"></i>進貨記錄
+          </a>
+        </li>
+        <li class="nav-item">
           <a href="{% url 'accounts:employee_list' %}" class="nav-link text-white {% if request.resolver_match.app_name == 'accounts' and 'employee' in request.path %}active{% endif %}">
             <i class="bi bi-person-badge me-2"></i>員工管理
           </a>

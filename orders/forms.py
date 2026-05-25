@@ -1,5 +1,5 @@
+from decimal import Decimal
 from django import forms
-from django.forms import inlineformset_factory
 
 from .models import Order, OrderRecord
 from customers.models import Customer
@@ -32,43 +32,33 @@ class OrderStatusForm(forms.ModelForm):
         labels = {"status": "訂單狀態"}
 
 
-class OrderRecordForm(forms.ModelForm):
-    class Meta:
-        model = OrderRecord
-        fields = ["product", "quantity", "discount"]
-        labels = {
-            "product": "商品",
-            "quantity": "數量",
-            "discount": "折扣 (%)",
-        }
+class NewRecordForm(forms.Form):
+    """訂單明細「新增列」用的 form。
+
+    note: 明細不可編輯既有內容；只能新增整筆或軟刪除整筆。
+    price / cost / conversion_rate 由後端從 ProductUnit(status=active) 鎖定，不接受表單傳值。
+    """
+
+    product = forms.ModelChoiceField(
+        label="商品",
+        queryset=Product.objects.none(),
+        empty_label="--- 請選擇商品 ---",
+    )
+    unit = forms.IntegerField(label="單位", widget=forms.Select())
+    quantity = forms.IntegerField(label="數量", min_value=1)
+    discount_pct = forms.DecimalField(
+        label="折扣 (%)",
+        max_digits=5, decimal_places=2,
+        min_value=Decimal("0"), max_value=Decimal("100"),
+        initial=Decimal("0"),
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["product"].queryset = Product.objects.filter(
             deleted_at__isnull=True
         ).select_related("category")
-        self.fields["product"].empty_label = "--- 請選擇商品 ---"
 
-    def clean_quantity(self):
-        v = self.cleaned_data.get("quantity")
-        if v is not None and v < 1:
-            raise forms.ValidationError("數量需大於等於 1。")
-        return v
-
-    def clean_discount(self):
-        v = self.cleaned_data.get("discount")
-        if v is not None and not (0 <= v <= 100):
-            raise forms.ValidationError("折扣需介於 0 到 100。")
-        return v
-
-
-OrderRecordFormSet = inlineformset_factory(
-    Order,
-    OrderRecord,
-    form=OrderRecordForm,
-    fields=["product", "quantity", "discount"],
-    extra=1,
-    can_delete=True,
-    min_num=1,
-    validate_min=True,
-)
+    @property
+    def discount_ratio(self):
+        return (self.cleaned_data["discount_pct"] / Decimal("100")).quantize(Decimal("0.01"))
