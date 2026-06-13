@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(find \"D:\\\\inventory_sales\" -type f -o -type d | head -100)",
-      "Bash(mkdir -p \"D:\\\\inventory_sales\\\\django_app\\\\config\" \"D:\\\\inventory_sales\\\\django_app\\\\accounts\\\\management\\\\commands\" \"D:\\\\inventory_sales\\\\django_app\\\\catalog\" \"D:\\\\inventory_sales\\\\django_app\\\\customers\" \"D:\\\\inventory_sales\\\\django_app\\\\orders\" \"D:\\\\inventory_sales\\\\django_app\\\\templates\\\\accounts\" \"D:\\\\inventory_sales\\\\django_app\\\\templates\\\\catalog\" \"D:\\\\inventory_sales\\\\django_app\\\\templates\\\\customers\" \"D:\\\\inventory_sales\\\\django_app\\\\templates\\\\orders\" \"D:\\\\inventory_sales\\\\django_app\\\\static\\\\css\" \"D:\\\\inventory_sales\\\\django_app\\\\nginx\")"
-    ]
-  }
-}
