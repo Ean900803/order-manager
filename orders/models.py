@@ -27,6 +27,7 @@ class Order(models.Model):
     )
 
     class Meta:
+        db_table = "orders"
         verbose_name = "訂單"
         verbose_name_plural = "訂單"
         ordering = ["-ordered_date"]
@@ -73,6 +74,7 @@ class OrderRecord(models.Model):
     )
 
     class Meta:
+        db_table = "order_record"
         verbose_name = "訂單明細"
         verbose_name_plural = "訂單明細"
         indexes = [

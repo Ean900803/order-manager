@@ -50,6 +50,7 @@ class Employee(AbstractBaseUser):
     objects = EmployeeManager()
 
     class Meta:
+        db_table = "employees"
         verbose_name = "員工"
         verbose_name_plural = "員工"
         indexes = [

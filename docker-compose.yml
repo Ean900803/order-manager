@@ -10,9 +10,9 @@ services:
     mem_limit: 300m
     environment:
       MYSQL_DATABASE: ${DB_NAME:-inventory_sales}
-      MYSQL_USER: ${DB_USER:-app}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-changeme}
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpass}
+      MYSQL_USER: ${DB_USER:-default}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-default}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
     ports:
       - "${DB_EXPOSE_PORT:-3306}:3306"
     volumes:
@@ -34,6 +34,7 @@ services:
         condition: service_healthy
     volumes:
       - static_files:/app/staticfiles
+      - .:/app
     expose:
       - "8000"
 

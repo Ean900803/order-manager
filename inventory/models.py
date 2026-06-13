@@ -19,6 +19,7 @@ class Stock(models.Model):
     )
 
     class Meta:
+        db_table = "stocks"
         verbose_name = "進貨批次"
         verbose_name_plural = "進貨批次"
         indexes = [

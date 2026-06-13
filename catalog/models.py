@@ -7,6 +7,7 @@ class Unit(models.Model):
     name = models.CharField("單位名稱", max_length=10, unique=True)
 
     class Meta:
+        db_table = "units"
         verbose_name = "單位"
         verbose_name_plural = "單位"
         ordering = ["id"]
@@ -27,6 +28,7 @@ class Category(models.Model):
     )
 
     class Meta:
+        db_table = "categories"
         verbose_name = "商品分類"
         verbose_name_plural = "商品分類"
 
@@ -73,6 +75,7 @@ class Product(models.Model):
     )
 
     class Meta:
+        db_table = "products"
         verbose_name = "商品"
         verbose_name_plural = "商品"
         indexes = [
@@ -121,6 +124,7 @@ class ProductUnit(models.Model):
     )
 
     class Meta:
+        db_table = "product_unit"
         verbose_name = "商品單位定價"
         verbose_name_plural = "商品單位定價"
         indexes = [

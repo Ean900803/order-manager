@@ -10,13 +10,14 @@
   python manage.py seed_demo                       # 預設：5 員工 / 40 商品 / 40 客戶 / 100 訂單
   python manage.py seed_demo --out path/to/dir     # 指定輸出目錄（預設 seed_csv）
   python manage.py seed_demo --orders 200 --customers 80
-  python manage.py seed_demo --null ""             # 指定 NULL 的表示字串（預設 \\N）
+  python manage.py seed_demo --null "\\N"          # NULL 改輸出 \\N（給 MySQL LOAD DATA 用）
 
 說明：
-  - 每張資料表輸出一支 CSV，含標頭列，欄位名稱對齊 Django migration 建出的資料表。
+  - 每張資料表輸出一支 CSV，檔名前綴數字即匯入順序（01_、02_...），對應資料表名為去掉前綴的部分。
+  - CSV 含標頭列，欄位名稱對齊 Django migration 建出的資料表。
   - 含外鍵的欄位以 `_id` 結尾，值為對應 CSV 內的 id。
   - 時間欄位以 UTC 輸出（settings.USE_TZ=True，Django 即以 UTC 存入 MySQL）。
-  - NULL 預設輸出為 \\N（MySQL LOAD DATA 慣例）；若你的匯入工具把空字串視為 NULL，可用 --null "" 。
+  - NULL 預設輸出為空字串（給 DBeaver 等 GUI 匯入，需勾選空字串轉 NULL）；用 LOAD DATA 改帶 --null "\\N"。
 """
 import csv
 import os
@@ -57,12 +58,13 @@ class Command(BaseCommand):
         parser.add_argument("--out", default="seed_csv", help="CSV 輸出目錄（預設 seed_csv）")
         parser.add_argument("--orders", type=int, default=100)
         parser.add_argument("--customers", type=int, default=40)
-        parser.add_argument("--null", default="\\N", help="NULL 的輸出字串（預設 \\N）")
+        parser.add_argument("--null", default="", help="NULL 的輸出字串（預設空字串，給 DBeaver 等 GUI 匯入；用 LOAD DATA 改帶 --null \"\\N\"）")
 
     def handle(self, *args, **opts):
         random.seed(42)
         out_dir = opts["out"]
         self.null = opts["null"]
+        self._seq = 0  # 檔名前綴序號 = 匯入順序
         os.makedirs(out_dir, exist_ok=True)
 
         base_dt = timezone.make_aware(datetime(2026, 5, 25, 9, 0, 0))
@@ -84,7 +86,7 @@ class Command(BaseCommand):
             emp_rows.append([eid, staff_pw, None, f"staff{i}", name, cell, "", lv, None])
             employees.append((eid, lv))
         emp_ids = [e[0] for e in employees]
-        self._write(out_dir, "accounts_employee",
+        self._write(out_dir, "employees",
                     ["id", "password", "last_login", "username", "name",
                      "cellphone", "address", "lv", "resigned_date"], emp_rows)
 
@@ -92,13 +94,13 @@ class Command(BaseCommand):
         # 欄位：id, name
         unit_id = {name: i for i, name in enumerate(UNITS, 1)}
         unit_rows = [[uid, name] for name, uid in unit_id.items()]
-        self._write(out_dir, "catalog_unit", ["id", "name"], unit_rows)
+        self._write(out_dir, "units", ["id", "name"], unit_rows)
 
         # ---- 分類 catalog_category ----
         # 欄位：id, name, deleted_at, deleted_by_id
         cat_id = {name: i for i, name in enumerate(CATEGORIES, 1)}
         cat_rows = [[cid, name, None, None] for name, cid in cat_id.items()]
-        self._write(out_dir, "catalog_category",
+        self._write(out_dir, "categories",
                     ["id", "name", "deleted_at", "deleted_by_id"], cat_rows)
 
         # ---- 商品 catalog_product + 商品單位定價 catalog_productunit ----
@@ -142,11 +144,11 @@ class Command(BaseCommand):
                                     1, pid, unit_id["箱"]])
                     product_units[pid].append((puid, unit_id["箱"], bprice, bcost, rate))
         product_ids = list(range(1, pid + 1))
-        self._write(out_dir, "catalog_product",
+        self._write(out_dir, "products",
                     ["id", "name", "description", "created_at", "deleted_at",
                      "category_id", "base_unit_id", "created_by_id", "deleted_by_id"],
                     product_rows)
-        self._write(out_dir, "catalog_productunit",
+        self._write(out_dir, "product_unit",
                     ["id", "conversion_rate", "price", "cost", "status", "created_at",
                      "created_by_id", "product_id", "unit_id"], pu_rows)
 
@@ -161,7 +163,7 @@ class Command(BaseCommand):
                 f"台北市信義區范例路{random.randint(1, 200)}號", "",
             ])
         customer_ids = [r[0] for r in cust_rows]
-        self._write(out_dir, "customers_customer",
+        self._write(out_dir, "customers",
                     ["id", "name", "cellphone", "address", "note"], cust_rows)
 
         # ---- 進貨批次 inventory_stock ----
@@ -179,7 +181,7 @@ class Command(BaseCommand):
                     sid, qty_base, qty_base, base_cost[pid], rdate.isoformat(),
                     pid, random.choice(emp_ids), base_unit_of[pid],
                 ])
-        self._write(out_dir, "inventory_stock",
+        self._write(out_dir, "stocks",
                     ["id", "quantity", "quantity_remaining", "unit_cost",
                      "restocked_date", "product_id", "restocked_by_id", "unit_id"],
                     stock_rows)
@@ -213,10 +215,10 @@ class Command(BaseCommand):
                     rid, random.randint(1, 5), price, cost, rate, discount,
                     ordered_str, random.choice(emp_ids), None, oid, pid, u_id,
                 ])
-        self._write(out_dir, "orders_order",
+        self._write(out_dir, "orders",
                     ["id", "ordered_date", "status", "deleted_at",
                      "customer_id", "deleted_by_id"], order_rows)
-        self._write(out_dir, "orders_orderrecord",
+        self._write(out_dir, "order_record",
                     ["id", "quantity", "price", "cost", "conversion_rate", "discount",
                      "created_at", "created_by_id", "deleted_by_id",
                      "order_id", "product_id", "unit_id"], record_rows)
@@ -226,9 +228,9 @@ class Command(BaseCommand):
             f"  員工 {len(emp_rows)} / 單位 {len(unit_rows)} / 分類 {len(cat_rows)} / "
             f"商品 {len(product_rows)} / 商品單位 {len(pu_rows)} / 客戶 {len(cust_rows)} / "
             f"庫存 {len(stock_rows)} / 訂單 {len(order_rows)} / 明細 {len(record_rows)}\n"
-            f"匯入順序建議：accounts_employee → catalog_unit → catalog_category → "
-            f"catalog_product → catalog_productunit → customers_customer → "
-            f"inventory_stock → orders_order → orders_orderrecord"
+            f"匯入順序建議：employees → units → categories → "
+            f"products → product_unit → customers → "
+            f"stocks → orders → order_record"
         ))
 
     def _fmt_dt(self, dt):
@@ -236,10 +238,12 @@ class Command(BaseCommand):
         return dt.astimezone(dt_timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
     def _write(self, out_dir, table, header, rows):
-        path = os.path.join(out_dir, f"{table}.csv")
+        self._seq += 1
+        filename = f"{self._seq:02d}_{table}.csv"  # 序號 = 匯入順序
+        path = os.path.join(out_dir, filename)
         with open(path, "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
             w.writerow(header)
             for row in rows:
                 w.writerow([self.null if v is None else v for v in row])
-        self.stdout.write(f"  {table}.csv: {len(rows)} 列")
+        self.stdout.write(f"  {filename}: {len(rows)} 列")

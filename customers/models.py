@@ -8,6 +8,7 @@ class Customer(models.Model):
     note = models.TextField("備註", blank=True)
 
     class Meta:
+        db_table = "customers"
         verbose_name = "客戶"
         verbose_name_plural = "客戶"
 
