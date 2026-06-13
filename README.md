@@ -51,3 +51,28 @@ staff
 account: staff1
 password: staff12345
 ```
+
+## 產生示範資料指令（seed_demo）
+
+於容器內執行（`docker compose exec -u 1000 web bash` 後）：
+
+```
+# 產生 CSV 到 seed_csv/
+
+python manage.py seed_demo
+
+# 指定輸出目錄
+python manage.py seed_demo --out path/to/dir
+
+# 調整筆數
+python manage.py seed_demo --orders 200 --customers 80
+
+# NULL 改輸出 \N
+python manage.py seed_demo --null "\N"
+
+# 不產 CSV，直接用 ORM 寫入資料庫
+python manage.py seed_demo --to-db
+
+# 先清空且直接寫入資料庫
+python manage.py seed_demo --to-db --clean
+```

@@ -1,16 +1,18 @@
 """
-產生示範資料並輸出成 CSV 檔（不寫入資料庫）。
+產生示範資料。預設輸出成 CSV 檔；帶 --to-db 則直接用 ORM 寫入資料庫。
 
-搭配流程：
+CSV 搭配流程：
   1. python manage.py migrate          # 先用 migration 建好資料表
   2. python manage.py seed_demo        # 產生 CSV 到 seed_csv/
   3. 用資料庫管理工具把各 CSV 匯入對應資料表
 
 用法：
-  python manage.py seed_demo                       # 預設：5 員工 / 40 商品 / 40 客戶 / 100 訂單
+  python manage.py seed_demo                       # 產 CSV（預設：5 員工 / 40 商品 / 40 客戶 / 100 訂單）
   python manage.py seed_demo --out path/to/dir     # 指定輸出目錄（預設 seed_csv）
   python manage.py seed_demo --orders 200 --customers 80
   python manage.py seed_demo --null "\\N"          # NULL 改輸出 \\N（給 MySQL LOAD DATA 用）
+  python manage.py seed_demo --to-db               # 不產 CSV，直接寫入資料庫
+  python manage.py seed_demo --to-db --clean       # 先清空（保留 admin）再寫入資料庫
 
 說明：
   - 每張資料表輸出一支 CSV，檔名前綴數字即匯入順序（01_、02_...），對應資料表名為去掉前綴的部分。
@@ -27,9 +29,10 @@ from decimal import Decimal
 
 from django.contrib.auth.hashers import make_password
 from django.core.management.base import BaseCommand
+from django.db import transaction
 from django.utils import timezone
 
-from accounts.models import LV_EMPLOYEE, LV_SALES, LV_MANAGER, LV_ADMIN
+from accounts.models import Employee, LV_EMPLOYEE, LV_SALES, LV_MANAGER, LV_ADMIN
 
 
 CATEGORIES = ["飲料", "零食", "泡麵", "罐頭", "冷凍", "日用品", "文具", "酒類"]
@@ -59,9 +62,14 @@ class Command(BaseCommand):
         parser.add_argument("--orders", type=int, default=100)
         parser.add_argument("--customers", type=int, default=40)
         parser.add_argument("--null", default="", help="NULL 的輸出字串（預設空字串，給 DBeaver 等 GUI 匯入；用 LOAD DATA 改帶 --null \"\\N\"）")
+        parser.add_argument("--to-db", action="store_true", help="直接用 ORM 寫入資料庫（不產 CSV）")
+        parser.add_argument("--clean", action="store_true", help="搭配 --to-db：先清空舊資料（保留 admin）後重建")
 
     def handle(self, *args, **opts):
         random.seed(42)
+        if opts["to_db"]:
+            self._seed_to_db(opts)
+            return
         out_dir = opts["out"]
         self.null = opts["null"]
         self._seq = 0  # 檔名前綴序號 = 匯入順序
@@ -231,6 +239,149 @@ class Command(BaseCommand):
             f"匯入順序建議：employees → units → categories → "
             f"products → product_unit → customers → "
             f"stocks → orders → order_record"
+        ))
+
+    @transaction.atomic
+    def _seed_to_db(self, opts):
+        """用 ORM 直接把示範資料寫入資料庫（等同舊版行為）。"""
+        # 延遲匯入，避免純產 CSV 時載入這些 model
+        from catalog.models import Category, Product, Unit, ProductUnit
+        from customers.models import Customer
+        from orders.models import Order, OrderRecord
+        from inventory.models import Stock
+
+        if opts["clean"]:
+            self.stdout.write("清空舊資料...")
+            OrderRecord.objects.all().delete()
+            Order.objects.all().delete()
+            Stock.objects.all().delete()
+            ProductUnit.objects.all().delete()
+            Product.objects.all().delete()
+            Category.objects.all().delete()
+            Unit.objects.all().delete()
+            Customer.objects.all().delete()
+            Employee.objects.exclude(username="admin").delete()
+
+        admin = Employee.objects.filter(lv=LV_ADMIN).first()
+        if not admin:
+            admin = Employee.objects.create_user(
+                username="admin", password="admin12345",
+                name="管理員", cellphone="0900000000", lv=LV_ADMIN,
+            )
+            self.stdout.write(self.style.WARNING("已建立 admin/admin12345"))
+
+        # 員工
+        emp_levels = [(LV_SALES, "業務"), (LV_SALES, "業務"), (LV_MANAGER, "主管"),
+                      (LV_EMPLOYEE, "員工"), (LV_EMPLOYEE, "員工")]
+        employees = [admin]
+        for i, (lv, role) in enumerate(emp_levels, 1):
+            emp, _ = Employee.objects.get_or_create(
+                username=f"staff{i}",
+                defaults={
+                    "name": f"{random.choice(CUSTOMER_SURNAMES)}{role}{i}",
+                    "cellphone": f"09{random.randint(10000000, 99999999)}",
+                    "lv": lv,
+                },
+            )
+            if not emp.has_usable_password():
+                emp.set_password("staff12345")
+                emp.save(update_fields=["password"])
+            employees.append(emp)
+        self.stdout.write(f"員工: {len(employees)} 位")
+
+        # 單位
+        units = {name: Unit.objects.get_or_create(name=name)[0] for name in UNITS}
+        self.stdout.write(f"單位: {len(units)} 個")
+
+        # 分類
+        cats = {name: Category.objects.get_or_create(name=name)[0] for name in CATEGORIES}
+        self.stdout.write(f"分類: {len(cats)} 個")
+
+        # 商品 + 基準 ProductUnit + 部分加箱單位
+        products = []
+        for cat_name, names in PRODUCTS.items():
+            for name in names:
+                base = random.choice([units["個"], units["瓶"], units["罐"], units["包"], units["盒"]])
+                price = Decimal(random.randint(15, 200))
+                cost = (price * Decimal("0.6")).quantize(Decimal("0.01"))
+                p, created = Product.objects.get_or_create(
+                    name=name,
+                    defaults={"category": cats[cat_name], "base_unit": base, "created_by": admin},
+                )
+                if created:
+                    ProductUnit.objects.create(
+                        product=p, unit=base, conversion_rate=1,
+                        price=price, cost=cost, created_by=admin,
+                    )
+                    if random.random() < 0.5:
+                        rate = random.choice([6, 12, 24])
+                        ProductUnit.objects.create(
+                            product=p, unit=units["箱"], conversion_rate=rate,
+                            price=price * rate * Decimal("0.9"),
+                            cost=cost * rate * Decimal("0.95"),
+                            created_by=admin,
+                        )
+                products.append(p)
+        self.stdout.write(f"商品: {len(products)} 個")
+
+        # 客戶
+        for i in range(opts["customers"]):
+            name = f"{random.choice(CUSTOMER_SURNAMES)}{random.choice(CUSTOMER_GIVENNAMES)}"
+            Customer.objects.get_or_create(
+                name=f"{name}{i:02d}",
+                defaults={
+                    "cellphone": f"09{random.randint(10000000, 99999999)}",
+                    "address": f"台北市信義區范例路{random.randint(1, 200)}號",
+                    "note": "",
+                },
+            )
+        customers = list(Customer.objects.all())
+        self.stdout.write(f"客戶: {len(customers)} 位")
+
+        # 進貨：每個商品 1-3 批
+        Stock.objects.all().delete()  # 重置庫存以免訂單跑出來變負很多
+        today = date(2026, 5, 25)
+        for p in products:
+            for _ in range(random.randint(1, 3)):
+                pcs_pu = p.product_units.filter(unit=p.base_unit, status=ProductUnit.Status.ACTIVE).first()
+                qty_base = random.randint(50, 300)
+                Stock.objects.create(
+                    product=p, unit=p.base_unit,
+                    quantity=qty_base, quantity_remaining=qty_base,
+                    unit_cost=pcs_pu.cost,
+                    restocked_date=today - timedelta(days=random.randint(0, 90)),
+                    restocked_by=random.choice(employees),
+                )
+        self.stdout.write(f"進貨批次: {Stock.objects.count()} 筆")
+
+        # 訂單
+        statuses = [Order.Status.PENDING, Order.Status.CONFIRMED, Order.Status.COMPLETED, Order.Status.CANCELLED]
+        weights = [2, 3, 4, 1]
+        for i in range(opts["orders"]):
+            customer = random.choice(customers)
+            status = random.choices(statuses, weights=weights)[0]
+            ordered = timezone.make_aware(datetime.combine(
+                today - timedelta(days=random.randint(0, 60)),
+                datetime.min.time().replace(hour=random.randint(9, 20))
+            ))
+            order = Order.objects.create(customer=customer, ordered_date=ordered, status=status)
+            for _ in range(random.randint(1, 4)):
+                p = random.choice(products)
+                pus = list(p.product_units.filter(status=ProductUnit.Status.ACTIVE))
+                pu = random.choice(pus)
+                discount = random.choice([Decimal("0"), Decimal("0.05"), Decimal("0.10"), Decimal("0.15")])
+                OrderRecord.objects.create(
+                    order=order, product=p, unit=pu.unit,
+                    quantity=random.randint(1, 5),
+                    price=pu.price, cost=pu.cost,
+                    conversion_rate=pu.conversion_rate,
+                    discount=discount,
+                    created_by=random.choice(employees),
+                )
+
+        self.stdout.write(self.style.SUCCESS(
+            f"\n完成（寫入資料庫）！訂單: {Order.objects.count()} / 明細: {OrderRecord.objects.count()} / "
+            f"商品: {Product.objects.count()} / 客戶: {Customer.objects.count()} / 庫存批次: {Stock.objects.count()}"
         ))
 
     def _fmt_dt(self, dt):
