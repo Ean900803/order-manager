@@ -4,38 +4,45 @@ from django.db.models import Q
 from django.db.models.deletion import ProtectedError
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views import View
-from django.views.generic import ListView
 
 from .forms import CustomerForm
 from .models import Customer
-from accounts.models import LV_SALES
-from accounts.permissions import LevelRequiredMixin
 
 
-class CustomerListView(LoginRequiredMixin, ListView):
-    model = Customer
+class CustomerListView(LoginRequiredMixin, View):
     template_name = "customers/customer_list.html"
-    context_object_name = "customers"
     paginate_by = 30
 
-    def get_queryset(self):
+    def get(self, request):
         qs = Customer.objects.all()
-        q = self.request.GET.get("q", "").strip()
+        q = request.GET.get("q", "").strip()
         if q:
-            # LIKE '%q%' OR LIKE '%q%' （無 JOIN，純 customers 表）
             qs = qs.filter(Q(name__icontains=q) | Q(cellphone__icontains=q))
-        return qs.order_by("id")
+        qs = qs.order_by("id")
 
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx["q"] = self.request.GET.get("q", "")
-        ctx["sql"] = str(self.get_queryset().query)
-        return ctx
+        try:
+            page = max(1, int(request.GET.get("page", 1)))
+        except ValueError:
+            page = 1
+
+        offset = (page - 1) * self.paginate_by
+        rows = list(qs[offset : offset + self.paginate_by + 1])
+        has_next = len(rows) > self.paginate_by
+        customers = rows[: self.paginate_by]
+
+        return render(request, self.template_name, {
+            "customers": customers,
+            "q": q,
+            "page": page,
+            "has_previous": page > 1,
+            "has_next": has_next,
+            "previous_page": page - 1,
+            "next_page": page + 1,
+        })
 
 
-class CustomerCreateView(LoginRequiredMixin, LevelRequiredMixin, View):
+class CustomerCreateView(LoginRequiredMixin, View):
     template_name = "customers/customer_form.html"
-    min_lv = LV_SALES
 
     def get(self, request):
         return render(request, self.template_name, {"form": CustomerForm(), "action": "新增"})
@@ -49,9 +56,8 @@ class CustomerCreateView(LoginRequiredMixin, LevelRequiredMixin, View):
         return render(request, self.template_name, {"form": form, "action": "新增"})
 
 
-class CustomerEditView(LoginRequiredMixin, LevelRequiredMixin, View):
+class CustomerEditView(LoginRequiredMixin, View):
     template_name = "customers/customer_form.html"
-    min_lv = LV_SALES
 
     def get(self, request, pk):
         customer = get_object_or_404(Customer, pk=pk)
@@ -67,9 +73,7 @@ class CustomerEditView(LoginRequiredMixin, LevelRequiredMixin, View):
         return render(request, self.template_name, {"form": form, "action": "編輯", "customer": customer})
 
 
-class CustomerDeleteView(LoginRequiredMixin, LevelRequiredMixin, View):
-    min_lv = LV_SALES
-
+class CustomerDeleteView(LoginRequiredMixin, View):
     def post(self, request, pk):
         customer = get_object_or_404(Customer, pk=pk)
         name = customer.name

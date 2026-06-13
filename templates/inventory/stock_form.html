@@ -34,11 +34,6 @@
           <div class="input-group"><span class="input-group-text">$</span>{{ form.unit_cost|bs5 }}</div>
           {% if form.unit_cost.errors %}<div class="text-danger small mt-1">{{ form.unit_cost.errors.0 }}</div>{% endif %}
         </div>
-        <div class="col-sm-6">
-          <label class="form-label fw-semibold">進貨日期 <span class="text-danger">*</span></label>
-          {{ form.restocked_date|bs5 }}
-          {% if form.restocked_date.errors %}<div class="text-danger small mt-1">{{ form.restocked_date.errors.0 }}</div>{% endif %}
-        </div>
       </div>
       {% if form.non_field_errors %}
       <div class="alert alert-danger mt-3 py-2 small">{{ form.non_field_errors.0 }}</div>

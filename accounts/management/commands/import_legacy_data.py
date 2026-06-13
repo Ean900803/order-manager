@@ -84,9 +84,7 @@ class Command(BaseCommand):
                     "name": row["name"],
                     "cellphone": row["cellphone"],
                     "address": row["address"] or "",
-                    "lv": row["lv"],
                     "resigned_date": row.get("resigned_date"),
-                    "is_active": row.get("resigned_date") is None,
                 },
             )
             if created:
@@ -118,7 +116,6 @@ class Command(BaseCommand):
                 pk=row["id"],
                 defaults={
                     "name": row["name"],
-                    "deleted_at": row.get("deleted_at"),
                 },
             )
             if created:
@@ -129,7 +126,10 @@ class Command(BaseCommand):
     # ── Products ──────────────────────────────────────────────────────────────
 
     def _import_products(self, conn):
-        from catalog.models import Product, Category
+        from accounts.models import Employee
+        from catalog.models import Product
+
+        fallback_creator = Employee.objects.order_by("pk").first()
 
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM products")
@@ -143,10 +143,7 @@ class Command(BaseCommand):
                     "category_id": row["category_id"],
                     "name": row["name"],
                     "description": row.get("description") or "",
-                    "price": row["price"],
-                    "cost": row["cost"],
-                    "created_at": row["created_at"],
-                    "deleted_at": row.get("deleted_at"),
+                    "created_by_id": row.get("created_by_id") or (fallback_creator.pk if fallback_creator else None),
                 },
             )
             if created:
@@ -182,7 +179,10 @@ class Command(BaseCommand):
     # ── Orders ────────────────────────────────────────────────────────────────
 
     def _import_orders(self, conn):
+        from accounts.models import Employee
         from orders.models import Order
+
+        fallback_creator = Employee.objects.order_by("pk").first()
 
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM orders")
@@ -196,7 +196,7 @@ class Command(BaseCommand):
                     "customer_id": row["customer_id"],
                     "ordered_date": row["ordered_date"],
                     "status": row["status"],
-                    "deleted_at": row.get("deleted_at"),
+                    "created_by_id": row.get("created_by_id") or (fallback_creator.pk if fallback_creator else None),
                 },
             )
             if created:
@@ -224,8 +224,7 @@ class Command(BaseCommand):
                     "price": row["price"],
                     "cost": row["cost"],
                     "discount": row["discount"],
-                    "created_at": row["created_at"],
-                    "deleted_at": row.get("deleted_at"),
+                    "conversion_rate": row.get("conversion_rate") or 1,
                 },
             )
             if created:

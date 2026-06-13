@@ -1,28 +1,38 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
 from django.db.models import Prefetch, Q
+from django.db.models.deletion import ProtectedError
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views import View
-from django.views.generic import ListView
-
 from .forms import CategoryForm, ProductForm, UnitForm, ProductUnitForm
 from .models import Category, Product, Unit, ProductUnit
-from accounts.models import LV_SALES, LV_ADMIN
-from accounts.permissions import LevelRequiredMixin
+
+PAGINATE_BY = 30
+
+
+def _paginate(qs, request):
+    try:
+        page = max(1, int(request.GET.get("page", 1)))
+    except ValueError:
+        page = 1
+    offset = (page - 1) * PAGINATE_BY
+    rows = list(qs[offset : offset + PAGINATE_BY + 1])
+    has_next = len(rows) > PAGINATE_BY
+    return rows[:PAGINATE_BY], {"page": page, "has_previous": page > 1, "has_next": has_next, "previous_page": page - 1, "next_page": page + 1}
 
 
 # ── Category ─────────────────────────────────────────────────────────────────
 
-class CategoryListView(LoginRequiredMixin, ListView):
-    model = Category
+class CategoryListView(LoginRequiredMixin, View):
     template_name = "catalog/category_list.html"
-    context_object_name = "categories"
-    queryset = Category.objects.all().order_by("id")
+
+    def get(self, request):
+        categories, paging = _paginate(Category.objects.all().order_by("id"), request)
+        return render(request, self.template_name, {"categories": categories, **paging})
 
 
-class CategoryCreateView(LoginRequiredMixin, LevelRequiredMixin, View):
+class CategoryCreateView(LoginRequiredMixin, View):
     template_name = "catalog/category_form.html"
-    min_lv = LV_SALES
 
     def get(self, request):
         return render(request, self.template_name, {"form": CategoryForm(), "action": "新增"})
@@ -36,9 +46,8 @@ class CategoryCreateView(LoginRequiredMixin, LevelRequiredMixin, View):
         return render(request, self.template_name, {"form": form, "action": "新增"})
 
 
-class CategoryEditView(LoginRequiredMixin, LevelRequiredMixin, View):
+class CategoryEditView(LoginRequiredMixin, View):
     template_name = "catalog/category_form.html"
-    min_lv = LV_SALES
 
     def get(self, request, pk):
         category = get_object_or_404(Category, pk=pk)
@@ -54,38 +63,30 @@ class CategoryEditView(LoginRequiredMixin, LevelRequiredMixin, View):
         return render(request, self.template_name, {"form": form, "action": "編輯", "category": category})
 
 
-class CategoryDisableView(LoginRequiredMixin, LevelRequiredMixin, View):
-    min_lv = LV_SALES
-
+class CategoryDeleteView(LoginRequiredMixin, View):
     def post(self, request, pk):
         category = get_object_or_404(Category, pk=pk)
-        category.disable(by=request.user)
-        messages.success(request, f"分類「{category.name}」已停用。")
-        return redirect("catalog:category_list")
-
-
-class CategoryRestoreView(LoginRequiredMixin, LevelRequiredMixin, View):
-    min_lv = LV_ADMIN
-
-    def post(self, request, pk):
-        category = get_object_or_404(Category, pk=pk)
-        category.restore()
-        messages.success(request, f"分類「{category.name}」已復原。")
+        name = category.name
+        try:
+            category.delete()
+            messages.success(request, f"分類「{name}」已刪除。")
+        except ProtectedError:
+            messages.error(request, f"分類「{name}」仍被商品引用，無法刪除。")
         return redirect("catalog:category_list")
 
 
 # ── Unit ──────────────────────────────────────────────────────────────────────
 
-class UnitListView(LoginRequiredMixin, ListView):
-    model = Unit
+class UnitListView(LoginRequiredMixin, View):
     template_name = "catalog/unit_list.html"
-    context_object_name = "units"
-    queryset = Unit.objects.all().order_by("id")
+
+    def get(self, request):
+        units, paging = _paginate(Unit.objects.all().order_by("id"), request)
+        return render(request, self.template_name, {"units": units, **paging})
 
 
-class UnitCreateView(LoginRequiredMixin, LevelRequiredMixin, View):
+class UnitCreateView(LoginRequiredMixin, View):
     template_name = "catalog/unit_form.html"
-    min_lv = LV_SALES
 
     def get(self, request):
         return render(request, self.template_name, {"form": UnitForm(), "action": "新增"})
@@ -99,9 +100,8 @@ class UnitCreateView(LoginRequiredMixin, LevelRequiredMixin, View):
         return render(request, self.template_name, {"form": form, "action": "新增"})
 
 
-class UnitEditView(LoginRequiredMixin, LevelRequiredMixin, View):
+class UnitEditView(LoginRequiredMixin, View):
     template_name = "catalog/unit_form.html"
-    min_lv = LV_SALES
 
     def get(self, request, pk):
         unit = get_object_or_404(Unit, pk=pk)
@@ -117,32 +117,27 @@ class UnitEditView(LoginRequiredMixin, LevelRequiredMixin, View):
         return render(request, self.template_name, {"form": form, "action": "編輯", "unit": unit})
 
 
-class UnitDeleteView(LoginRequiredMixin, LevelRequiredMixin, View):
-    min_lv = LV_ADMIN
-
+class UnitDeleteView(LoginRequiredMixin, View):
     def post(self, request, pk):
         unit = get_object_or_404(Unit, pk=pk)
         name = unit.name
         try:
             unit.delete()
             messages.success(request, f"單位「{name}」已刪除。")
-        except Exception:
+        except ProtectedError:
             messages.error(request, f"單位「{name}」仍被商品引用，無法刪除。")
         return redirect("catalog:unit_list")
 
 
 # ── Product ───────────────────────────────────────────────────────────────────
 
-class ProductListView(LoginRequiredMixin, ListView):
-    model = Product
+class ProductListView(LoginRequiredMixin, View):
     template_name = "catalog/product_list.html"
-    context_object_name = "products"
-    paginate_by = 30
 
-    def get_queryset(self):
+    def get(self, request):
         qs = (
             Product.objects
-            .select_related("category", "base_unit")
+            .select_related("category")
             .prefetch_related(
                 Prefetch(
                     "product_units",
@@ -151,24 +146,15 @@ class ProductListView(LoginRequiredMixin, ListView):
                 )
             )
         )
-        q = self.request.GET.get("q", "").strip()
+        q = request.GET.get("q", "").strip()
         if q:
-            # JOIN catalog_category, LIKE '%q%' OR LIKE '%q%'
-            qs = qs.filter(
-                Q(name__icontains=q) | Q(category__name__icontains=q)
-            )
-        return qs.order_by("id")
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx["q"] = self.request.GET.get("q", "")
-        ctx["sql"] = str(self.get_queryset().query)
-        return ctx
+            qs = qs.filter(Q(name__icontains=q) | Q(category__name__icontains=q))
+        products, paging = _paginate(qs.order_by("id"), request)
+        return render(request, self.template_name, {"products": products, "q": q, **paging})
 
 
-class ProductCreateView(LoginRequiredMixin, LevelRequiredMixin, View):
+class ProductCreateView(LoginRequiredMixin, View):
     template_name = "catalog/product_form.html"
-    min_lv = LV_SALES
 
     def get(self, request):
         return render(request, self.template_name, {"form": ProductForm(requesting_user=request.user), "action": "新增"})
@@ -182,9 +168,8 @@ class ProductCreateView(LoginRequiredMixin, LevelRequiredMixin, View):
         return render(request, self.template_name, {"form": form, "action": "新增"})
 
 
-class ProductEditView(LoginRequiredMixin, LevelRequiredMixin, View):
+class ProductEditView(LoginRequiredMixin, View):
     template_name = "catalog/product_form.html"
-    min_lv = LV_SALES
 
     def get(self, request, pk):
         product = get_object_or_404(Product, pk=pk)
@@ -201,23 +186,15 @@ class ProductEditView(LoginRequiredMixin, LevelRequiredMixin, View):
         return render(request, self.template_name, {"form": form, "action": "編輯", "product": product})
 
 
-class ProductDisableView(LoginRequiredMixin, LevelRequiredMixin, View):
-    min_lv = LV_SALES
-
+class ProductDeleteView(LoginRequiredMixin, View):
     def post(self, request, pk):
         product = get_object_or_404(Product, pk=pk)
-        product.disable(by=request.user)
-        messages.success(request, f"商品「{product.name}」已停用。")
-        return redirect("catalog:product_list")
-
-
-class ProductRestoreView(LoginRequiredMixin, LevelRequiredMixin, View):
-    min_lv = LV_ADMIN
-
-    def post(self, request, pk):
-        product = get_object_or_404(Product, pk=pk)
-        product.restore()
-        messages.success(request, f"商品「{product.name}」已復原。")
+        name = product.name
+        try:
+            product.delete()
+            messages.success(request, f"商品「{name}」已刪除。")
+        except ProtectedError:
+            messages.error(request, f"商品「{name}」仍被訂單或庫存引用，無法刪除。")
         return redirect("catalog:product_list")
 
 
@@ -228,22 +205,21 @@ class ProductUnitListView(LoginRequiredMixin, View):
 
     def get(self, request, product_pk):
         product = get_object_or_404(Product, pk=product_pk)
-        units = product.product_units.select_related("unit", "created_by").order_by("unit_id", "-created_at")
+        units = product.product_units.select_related("unit").order_by("unit_id")
         return render(request, self.template_name, {"product": product, "units": units})
 
 
-class ProductUnitCreateView(LoginRequiredMixin, LevelRequiredMixin, View):
+class ProductUnitCreateView(LoginRequiredMixin, View):
     template_name = "catalog/product_unit_form.html"
-    min_lv = LV_SALES
 
     def get(self, request, product_pk):
         product = get_object_or_404(Product, pk=product_pk)
-        form = ProductUnitForm(product=product, requesting_user=request.user)
+        form = ProductUnitForm(product=product)
         return render(request, self.template_name, {"form": form, "product": product})
 
     def post(self, request, product_pk):
         product = get_object_or_404(Product, pk=product_pk)
-        form = ProductUnitForm(request.POST, product=product, requesting_user=request.user)
+        form = ProductUnitForm(request.POST, product=product)
         if form.is_valid():
             form.save()
             messages.success(request, "定價已更新（舊定價已自動失效）。")
@@ -251,9 +227,7 @@ class ProductUnitCreateView(LoginRequiredMixin, LevelRequiredMixin, View):
         return render(request, self.template_name, {"form": form, "product": product})
 
 
-class ProductUnitDeactivateView(LoginRequiredMixin, LevelRequiredMixin, View):
-    min_lv = LV_SALES
-
+class ProductUnitDeactivateView(LoginRequiredMixin, View):
     def post(self, request, product_pk, pk):
         pu = get_object_or_404(ProductUnit, pk=pk, product_id=product_pk)
         pu.deactivate()

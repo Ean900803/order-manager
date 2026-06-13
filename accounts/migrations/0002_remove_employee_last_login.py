@@ -8,5 +8,8 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AlterModelTable(name="employee", table="employees"),
+        migrations.RemoveField(
+            model_name="employee",
+            name="last_login",
+        ),
     ]

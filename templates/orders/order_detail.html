@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load form_tags %}
 {% block title %}訂單 #{{ order.pk }}{% endblock %}
 {% block content %}
 <div class="d-flex align-items-center mb-3 gap-2">
@@ -8,71 +9,234 @@
 </div>
 
 <div class="row g-3">
-  <div class="col-md-4">
-    <div class="card h-100">
-      <div class="card-header">訂單資訊</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-5">客戶</dt><dd class="col-7">{{ order.customer.name }}</dd>
-          <dt class="col-5">訂單日期</dt><dd class="col-7">{{ order.ordered_date|date:"Y-m-d H:i" }}</dd>
-          <dt class="col-5">狀態</dt><dd class="col-7">{{ order.get_status_display }}</dd>
-        </dl>
+  <!-- ── 左：狀態 + 操作 ─────────────────────────────── -->
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white fw-semibold"><i class="bi bi-pencil me-2 text-primary"></i>狀態</div>
+      <div class="card-body p-4">
+        <div class="mb-3 p-3 bg-light rounded">
+          <div class="small text-muted mb-1">客戶</div>
+          <div class="fw-semibold">{{ order.customer.name }}</div>
+        </div>
+        <div class="mb-3 p-3 bg-light rounded">
+          <div class="small text-muted mb-1">訂單日期</div>
+          <div class="fw-semibold">{{ order.ordered_date|date:"Y-m-d H:i" }}</div>
+        </div>
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <label class="form-label fw-semibold">變更狀態</label>
+          {{ status_form.status|bs5 }}
+          {% if status_form.status.errors %}<div class="text-danger small mt-1">{{ status_form.status.errors.0 }}</div>{% endif %}
+          <button type="submit" name="save_status" class="btn btn-primary w-100 mt-3">
+            <i class="bi bi-check-lg me-1"></i>更新狀態
+          </button>
+        </form>
       </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2">
+      {% if order.status != 'cancelled' %}
+      <form method="post" action="{% url 'orders:cancel' order.pk %}"
+            onsubmit="return confirm('確定要取消此訂單？此操作無法復原。')">
+        {% csrf_token %}
+        <button class="btn btn-outline-warning">取消訂單</button>
+      </form>
+      {% endif %}
+      <form method="post" action="{% url 'orders:delete' order.pk %}"
+            onsubmit="return confirm('確定要刪除此訂單？此操作無法復原。')">
+        {% csrf_token %}
+        <button class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i>刪除訂單</button>
+      </form>
     </div>
   </div>
 
-  <div class="col-md-8">
-    <div class="card">
-      <div class="card-header">訂單明細</div>
-      <div class="table-responsive">
-        <table class="table mb-0">
-          <thead class="table-light">
-            <tr><th>商品</th><th>單位</th><th>單價</th><th>數量</th><th>折扣%</th><th>小計</th></tr>
-          </thead>
-          <tbody>
-            {% for r in records %}
-            <tr>
-              <td>{{ r.product.name }}</td>
-              <td>{{ r.unit.name }}<br><small class="text-muted">1 {{ r.unit.name }} = {{ r.conversion_rate }} {{ r.product.base_unit.name }}</small></td>
-              <td>{{ r.price }}</td>
-              <td>{{ r.quantity }}</td>
-              <td>{% widthratio r.discount 1 100 %}</td>
-              <td>{{ r.subtotal|floatformat:2 }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-          <tfoot>
-            <tr class="fw-bold">
-              <td colspan="5" class="text-end">總額</td>
-              <td>{{ order.total|floatformat:2 }}</td>
-            </tr>
-          </tfoot>
-        </table>
+  <!-- ── 右：編輯內容（header + 明細增刪）──────────────── -->
+  <div class="col-lg-8">
+    <form method="post" id="order-form" novalidate>
+      {% csrf_token %}
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-white fw-semibold"><i class="bi bi-info-circle me-2 text-primary"></i>訂單內容</div>
+        <div class="card-body p-4">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">客戶 <span class="text-danger">*</span></label>
+              {{ order_form.customer|bs5 }}
+              {% if order_form.customer.errors %}<div class="text-danger small mt-1">{{ order_form.customer.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">訂單日期 <span class="text-danger">*</span></label>
+              {{ order_form.ordered_date|bs5 }}
+              {% if order_form.ordered_date.errors %}<div class="text-danger small mt-1">{{ order_form.ordered_date.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+
+      {% if records %}
+      <!-- 既有明細（不可改數量/價格，只能刪除）-->
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-white fw-semibold"><i class="bi bi-card-list me-2 text-secondary"></i>既有明細</div>
+        <div class="table-responsive">
+          <table class="table mb-0 align-middle">
+            <thead class="table-light">
+              <tr><th class="ps-3">商品</th><th>單價</th><th>數量</th><th>折扣%</th><th>小計</th><th style="width:80px">刪除</th></tr>
+            </thead>
+            <tbody>
+              {% for r in records %}
+              <tr>
+                <td class="ps-3">{{ r.product.name }}</td>
+                <td>{{ r.price }}</td>
+                <td>{{ r.quantity }}</td>
+                <td>{% widthratio r.discount 1 100 %}</td>
+                <td class="fw-semibold">{{ r.subtotal|floatformat:2 }}</td>
+                <td>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="delete_record_ids" value="{{ r.pk }}" id="del-{{ r.pk }}">
+                    <label class="form-check-label small text-danger" for="del-{{ r.pk }}">刪除</label>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot class="table-light">
+              <tr class="fw-bold"><td colspan="4" class="text-end">總額</td><td colspan="2">{{ total|floatformat:2 }}</td></tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- 新增明細 -->
+      {{ formset.management_form }}
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <span class="fw-semibold"><i class="bi bi-plus-circle me-2 text-primary"></i>追加新明細</span>
+          <button type="button" class="btn btn-sm btn-outline-primary" id="add-row"><i class="bi bi-plus-lg me-1"></i>新增一列</button>
+        </div>
+        <div class="table-responsive">
+          <table class="table mb-0 align-middle" id="new-formset-table">
+            <thead class="table-light">
+              <tr>
+                <th class="ps-3" style="min-width:200px">商品</th>
+                <th style="width:130px">單位</th>
+                <th style="width:100px">單價</th>
+                <th style="width:90px">數量</th>
+                <th style="width:120px">折扣 (%)</th>
+                <th style="width:110px">小計</th>
+                <th style="width:48px"></th>
+              </tr>
+            </thead>
+            <tbody id="new-formset-body">
+              {% for f in formset %}
+              <tr class="new-row">
+                <td class="ps-3">
+                  <select name="{{ f.product.html_name }}" id="{{ f.product.id_for_label }}" class="form-select product-select{% if f.product.errors %} is-invalid{% endif %}">
+                    <option value="">--- 請選擇商品 ---</option>
+                    {% for p in product_options %}
+                    <option value="{{ p.pk }}" {% if f.product.value|stringformat:"s" == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.category.name }} / {{ p.name }}</option>
+                    {% endfor %}
+                  </select>
+                  {% if f.product.errors %}<div class="text-danger small">{{ f.product.errors.0 }}</div>{% endif %}
+                </td>
+                <td>
+                  <select name="{{ f.unit.html_name }}" id="{{ f.unit.id_for_label }}" class="form-select form-select-sm unit-select"></select>
+                  {% if f.unit.errors %}<div class="text-danger small">{{ f.unit.errors.0 }}</div>{% endif %}
+                </td>
+                <td><input type="text" class="form-control form-control-sm unit-price" readonly placeholder="—"></td>
+                <td>{{ f.quantity|bs5 }}{% if f.quantity.errors %}<div class="text-danger small">{{ f.quantity.errors.0 }}</div>{% endif %}</td>
+                <td><div class="input-group input-group-sm">{{ f.discount_pct|bs5 }}<span class="input-group-text">%</span></div>{% if f.discount_pct.errors %}<div class="text-danger small">{{ f.discount_pct.errors.0 }}</div>{% endif %}</td>
+                <td><input type="text" class="form-control form-control-sm row-subtotal" readonly placeholder="0.00"></td>
+                <td><button type="button" class="btn btn-sm btn-outline-danger remove-row"><i class="bi bi-trash"></i></button></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <button type="submit" name="save_order" class="btn btn-primary px-4">
+        <i class="bi bi-check-lg me-1"></i>儲存訂單內容
+      </button>
+    </form>
   </div>
 </div>
 
-{% if request.user.lv >= 1 %}
-<div class="mt-3 d-flex flex-wrap gap-2">
-  <a href="{% url 'orders:edit' order.pk %}" class="btn btn-outline-secondary">
-    <i class="bi bi-pencil me-1"></i>編輯訂單
-  </a>
-  {% if request.user.lv >= 3 %}
-  <a href="{% url 'orders:status' order.pk %}" class="btn btn-outline-secondary">修改狀態</a>
-  {% if order.status != 'cancelled' %}
-  <form method="post" action="{% url 'orders:cancel' order.pk %}"
-        onsubmit="return confirm('確定要取消此訂單？此操作無法復原。')">
-    {% csrf_token %}
-    <button class="btn btn-warning">取消訂單</button>
-  </form>
-  {% endif %}
-  <form method="post" action="{% url 'orders:delete' order.pk %}"
-        onsubmit="return confirm('確定要刪除此訂單？此操作無法復原。')">
-    {% csrf_token %}
-    <button class="btn btn-danger"><i class="bi bi-trash me-1"></i>刪除訂單</button>
-  </form>
-  {% endif %}
-</div>
-{% endif %}
+<!-- 空白 row 樣板 -->
+<template id="empty-row-template">
+  <tr class="new-row">
+    <td class="ps-3">
+      <select name="new-__prefix__-product" id="id_new-__prefix__-product" class="form-select form-select-sm product-select">
+        <option value="">--- 請選擇商品 ---</option>
+        {% for p in product_options %}
+        <option value="{{ p.pk }}">{{ p.category.name }} / {{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </td>
+    <td><select name="new-__prefix__-unit" id="id_new-__prefix__-unit" class="form-select form-select-sm unit-select"></select></td>
+    <td><input type="text" class="form-control form-control-sm unit-price" readonly placeholder="—"></td>
+    <td><input type="number" name="new-__prefix__-quantity" id="id_new-__prefix__-quantity" class="form-control form-control-sm" min="1" value="1"></td>
+    <td><div class="input-group input-group-sm"><input type="number" name="new-__prefix__-discount_pct" id="id_new-__prefix__-discount_pct" class="form-control" min="0" max="100" step="0.01" value="0"><span class="input-group-text">%</span></div></td>
+    <td><input type="text" class="form-control form-control-sm row-subtotal" readonly placeholder="0.00"></td>
+    <td><button type="button" class="btn btn-sm btn-outline-danger remove-row"><i class="bi bi-trash"></i></button></td>
+  </tr>
+</template>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const PRODUCT_UNIT_DATA = {{ product_unit_data_json|safe }};
+const TOTAL_FORMS = document.getElementById('id_new-TOTAL_FORMS');
+
+function refreshUnitOptions(row) {
+  const productSel = row.querySelector('.product-select') || row.querySelector('[id$="-product"]');
+  const unitSel = row.querySelector('.unit-select');
+  if (!productSel || !unitSel) return;
+  const opts = PRODUCT_UNIT_DATA[productSel.value] || [];
+  const prev = unitSel.value;
+  unitSel.innerHTML = '<option value="">--- 請選擇單位 ---</option>';
+  opts.forEach(o => {
+    const el = document.createElement('option');
+    el.value = o.unit_id;
+    el.textContent = o.unit_name;
+    el.dataset.price = o.price;
+    unitSel.appendChild(el);
+  });
+  if (prev) unitSel.value = prev;
+  calcRow(row);
+}
+
+function calcRow(row) {
+  const opt = row.querySelector('.unit-select')?.selectedOptions[0];
+  const price = opt ? parseFloat(opt.dataset.price || 0) : 0;
+  const qty = parseFloat(row.querySelector('[id$="-quantity"]')?.value) || 0;
+  const disc = parseFloat(row.querySelector('[id$="-discount_pct"]')?.value) || 0;
+  const priceInput = row.querySelector('.unit-price');
+  if (priceInput) priceInput.value = price ? price.toFixed(2) : '';
+  const subInput = row.querySelector('.row-subtotal');
+  if (subInput) subInput.value = price && qty ? (price * qty * (1 - disc / 100)).toFixed(2) : '';
+}
+
+function wireRow(row) {
+  const prodSel = row.querySelector('.product-select') || row.querySelector('[id$="-product"]');
+  if (prodSel) {
+    prodSel.classList.add('product-select');
+    prodSel.addEventListener('change', () => refreshUnitOptions(row));
+  }
+  row.addEventListener('change', () => calcRow(row));
+  row.addEventListener('input', () => calcRow(row));
+  row.querySelector('.remove-row').addEventListener('click', () => row.remove());
+}
+
+document.querySelectorAll('.new-row').forEach(row => { wireRow(row); refreshUnitOptions(row); });
+
+document.getElementById('add-row').addEventListener('click', () => {
+  const idx = parseInt(TOTAL_FORMS.value);
+  const tmpl = document.getElementById('empty-row-template').content.cloneNode(true);
+  const row = tmpl.querySelector('tr');
+  row.innerHTML = row.innerHTML.replaceAll('__prefix__', idx);
+  document.getElementById('new-formset-body').appendChild(row);
+  TOTAL_FORMS.value = idx + 1;
+  wireRow(document.querySelector('#new-formset-body tr:last-child'));
+});
+</script>
 {% endblock %}

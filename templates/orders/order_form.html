@@ -49,7 +49,6 @@
         <thead class="table-light">
           <tr>
             <th class="ps-3">商品</th>
-            <th>單位</th>
             <th>單價</th>
             <th>數量</th>
             <th>折扣%</th>
@@ -61,7 +60,6 @@
           {% for r in existing_records %}
           <tr>
             <td class="ps-3">{{ r.product.name }}</td>
-            <td>{{ r.unit.name }}</td>
             <td>{{ r.price }}</td>
             <td>{{ r.quantity }}</td>
             <td>{% widthratio r.discount 1 100 %}</td>
@@ -107,7 +105,15 @@
         <tbody id="new-formset-body">
           {% for f in formset %}
           <tr class="new-row">
-            <td class="ps-3">{{ f.product|bs5 }}{% if f.product.errors %}<div class="text-danger small">{{ f.product.errors.0 }}</div>{% endif %}</td>
+            <td class="ps-3">
+              <select name="{{ f.product.html_name }}" id="{{ f.product.id_for_label }}" class="form-select product-select{% if f.product.errors %} is-invalid{% endif %}">
+                <option value="">--- 請選擇商品 ---</option>
+                {% for p in product_options %}
+                <option value="{{ p.pk }}" {% if f.product.value|stringformat:"s" == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.category.name }} / {{ p.name }}</option>
+                {% endfor %}
+              </select>
+              {% if f.product.errors %}<div class="text-danger small">{{ f.product.errors.0 }}</div>{% endif %}
+            </td>
             <td>
               <select name="{{ f.unit.html_name }}" id="{{ f.unit.id_for_label }}" class="form-select form-select-sm unit-select"></select>
               {% if f.unit.errors %}<div class="text-danger small">{{ f.unit.errors.0 }}</div>{% endif %}
@@ -142,9 +148,9 @@
     <td class="ps-3">
       <select name="new-__prefix__-product" id="id_new-__prefix__-product" class="form-select form-select-sm product-select">
         <option value="">--- 請選擇商品 ---</option>
-        {% for f in formset %}{% if forloop.first %}{% for p in f.fields.product.queryset %}
+        {% for p in product_options %}
         <option value="{{ p.pk }}">{{ p.category.name }} / {{ p.name }}</option>
-        {% endfor %}{% endif %}{% endfor %}
+        {% endfor %}
       </select>
     </td>
     <td>

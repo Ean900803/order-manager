@@ -43,11 +43,6 @@
           {{ form.address|bs5 }}
           {% if form.address.errors %}<div class="text-danger small mt-1">{{ form.address.errors.0 }}</div>{% endif %}
         </div>
-        <div class="col-sm-6">
-          <label class="form-label fw-semibold">權限等級 <span class="text-danger">*</span></label>
-          {{ form.lv|bs5 }}
-          {% if form.lv.errors %}<div class="text-danger small mt-1">{{ form.lv.errors.0 }}</div>{% endif %}
-        </div>
       </div>
 
       {% if form.non_field_errors %}

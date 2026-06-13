@@ -1,4 +1,4 @@
-id,name,cellphone,address,note
+custId,name,cellphone,address,note
 1,陳宏志00,0945812670,台北市信義區范例路197號,
 2,黃美玲01,0949392920,台北市信義區范例路112號,
 3,林靜怡02,0910435578,台北市信義區范例路185號,

@@ -1,5 +1,5 @@
 """
-建立最高權限管理員帳號 (lv=9)。
+建立管理員帳號。
 
 使用方式：
   python manage.py create_admin
@@ -10,11 +10,11 @@
 
 import getpass
 from django.core.management.base import BaseCommand, CommandError
-from accounts.models import Employee, LV_ADMIN
+from accounts.models import Employee
 
 
 class Command(BaseCommand):
-    help = "建立最高權限管理員帳號 (lv=9)"
+    help = "建立管理員帳號"
 
     def add_arguments(self, parser):
         parser.add_argument("--username", help="登入帳號")
@@ -49,9 +49,8 @@ class Command(BaseCommand):
             password=password,
             name=name,
             cellphone=cellphone,
-            lv=LV_ADMIN,
         )
 
         self.stdout.write(self.style.SUCCESS(
-            f"管理員帳號建立成功：{emp.username}（{emp.name}），權限等級：{emp.get_lv_display()}"
+            f"管理員帳號建立成功：{emp.username}（{emp.name}）"
         ))

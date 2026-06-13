@@ -1,18 +1,6 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 from django.db import models
 
-LV_EMPLOYEE = 1
-LV_SALES = 2
-LV_MANAGER = 3
-LV_ADMIN = 9
-
-LEVEL_CHOICES = [
-    (LV_EMPLOYEE, "員工"),
-    (LV_SALES, "業務"),
-    (LV_MANAGER, "主管"),
-    (LV_ADMIN, "管理員"),
-]
-
 
 class EmployeeManager(BaseUserManager):
     use_in_migrations = True
@@ -26,22 +14,21 @@ class EmployeeManager(BaseUserManager):
         return user
 
     def create_user(self, username, password=None, **extra_fields):
-        extra_fields.setdefault("lv", LV_EMPLOYEE)
         return self._create_user(username, password, **extra_fields)
 
     def create_superuser(self, username, password=None, **extra_fields):
-        extra_fields["lv"] = LV_ADMIN
         extra_fields.setdefault("name", username)
         extra_fields.setdefault("cellphone", "0000000000")
         return self._create_user(username, password, **extra_fields)
 
 
 class Employee(AbstractBaseUser):
+    last_login = None
+    id = models.AutoField(primary_key=True, db_column="eId")
     username = models.CharField("帳號", max_length=20, unique=True)
     name = models.CharField("姓名", max_length=20)
     cellphone = models.CharField("手機", max_length=10)
     address = models.CharField("地址", max_length=100, blank=True)
-    lv = models.PositiveSmallIntegerField("權限等級", choices=LEVEL_CHOICES, default=LV_EMPLOYEE)
     resigned_date = models.DateTimeField("離職時間", null=True, blank=True)
 
     USERNAME_FIELD = "username"
@@ -68,15 +55,13 @@ class Employee(AbstractBaseUser):
     def is_active_employee(self):
         return self.resigned_date is None
 
+    # 權限系統已移除：登入後即視為具備所有操作與後台權限
     @property
     def is_staff(self):
-        return self.lv >= LV_ADMIN
-
-    def has_lv(self, min_lv):
-        return self.lv >= min_lv
+        return True
 
     def has_perm(self, perm, obj=None):
-        return self.lv >= LV_ADMIN
+        return True
 
     def has_module_perms(self, app_label):
-        return self.lv >= LV_ADMIN
+        return True

@@ -13,14 +13,14 @@ class EmployeeAdminForm(forms.ModelForm):
 
     class Meta:
         model = Employee
-        fields = ["username", "name", "cellphone", "address", "lv", "resigned_date", "password"]
+        fields = ["username", "name", "cellphone", "address", "resigned_date", "password"]
 
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
     form = EmployeeAdminForm
-    list_display = ["username", "name", "lv", "cellphone", "resigned_date"]
-    list_filter = ["lv", "resigned_date"]
+    list_display = ["username", "name", "cellphone", "resigned_date"]
+    list_filter = ["resigned_date"]
     search_fields = ["username", "name", "cellphone"]
 
     def save_model(self, request, obj, form, change):

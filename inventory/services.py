@@ -43,7 +43,7 @@ def consume_for_order(order, by=None):
     """
     # 彙整：每個 product 需要多少基準單位
     need = defaultdict(int)
-    for r in order.records.filter(deleted_at__isnull=True):
+    for r in order.records.all():
         need[r.product_id] += r.quantity * r.conversion_rate
 
     shortages = {}
@@ -54,7 +54,7 @@ def consume_for_order(order, by=None):
         batches = list(
             Stock.objects.select_for_update()
             .filter(product_id=pid)
-            .order_by("restocked_date", "id")
+            .order_by("id")
         )
         remaining_need = need_qty
         last_positive_batch = None

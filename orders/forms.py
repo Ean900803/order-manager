@@ -55,9 +55,7 @@ class NewRecordForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["product"].queryset = Product.objects.filter(
-            deleted_at__isnull=True
-        ).select_related("category")
+        self.fields["product"].queryset = Product.objects.all().select_related("category")
 
     @property
     def discount_ratio(self):

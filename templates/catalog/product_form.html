@@ -29,28 +29,30 @@
           {{ form.description|bs5 }}
           {% if form.description.errors %}<div class="text-danger small mt-1">{{ form.description.errors.0 }}</div>{% endif %}
         </div>
+        {% if form.unit %}
         <div class="col-12">
-          <label class="form-label fw-semibold">基準單位 <span class="text-danger">*</span></label>
-          {{ form.base_unit|bs5 }}
-          <div class="form-text">建立後不可變更；所有庫存與單位換算以此為基礎。</div>
-          {% if form.base_unit.errors %}<div class="text-danger small mt-1">{{ form.base_unit.errors.0 }}</div>{% endif %}
+          <label class="form-label fw-semibold">初始單位 <span class="text-danger">*</span></label>
+          {{ form.unit|bs5 }}
+          <div class="form-text">建立商品時一併建立第一筆單位定價（換算比例為 1）；之後可至「單位定價」管理。</div>
+          {% if form.unit.errors %}<div class="text-danger small mt-1">{{ form.unit.errors.0 }}</div>{% endif %}
         </div>
         <div class="col-sm-6">
-          <label class="form-label fw-semibold">售價（基準單位） <span class="text-danger">*</span></label>
+          <label class="form-label fw-semibold">售價 <span class="text-danger">*</span></label>
           <div class="input-group">
             <span class="input-group-text">$</span>
-            {{ form.base_price|bs5 }}
+            {{ form.price|bs5 }}
           </div>
-          {% if form.base_price.errors %}<div class="text-danger small mt-1">{{ form.base_price.errors.0 }}</div>{% endif %}
+          {% if form.price.errors %}<div class="text-danger small mt-1">{{ form.price.errors.0 }}</div>{% endif %}
         </div>
         <div class="col-sm-6">
-          <label class="form-label fw-semibold">成本（基準單位） <span class="text-danger">*</span></label>
+          <label class="form-label fw-semibold">成本 <span class="text-danger">*</span></label>
           <div class="input-group">
             <span class="input-group-text">$</span>
-            {{ form.base_cost|bs5 }}
+            {{ form.cost|bs5 }}
           </div>
-          {% if form.base_cost.errors %}<div class="text-danger small mt-1">{{ form.base_cost.errors.0 }}</div>{% endif %}
+          {% if form.cost.errors %}<div class="text-danger small mt-1">{{ form.cost.errors.0 }}</div>{% endif %}
         </div>
+        {% endif %}
       </div>
 
       {% if form.non_field_errors %}

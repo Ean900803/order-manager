@@ -11,7 +11,7 @@
 <div class="card border-0 shadow-sm" style="max-width:560px;">
   <div class="card-body p-4">
     <p class="text-muted small mb-3">
-      若該單位已有 active 定價，提交後舊定價會自動失效。基準單位「{{ product.base_unit.name }}」的換算比例固定為 1。
+      若該單位已有 active 定價，提交後舊定價會自動失效。換算比例代表此單位等於幾個基準單位。
     </p>
     <form method="post" novalidate>
       {% csrf_token %}
